@@ -1,0 +1,3 @@
+import PageShell from "../../components/PageShell";
+const rules=["League format & roster settings","Scoring settings","Waiver rules","Trade rules & deadline","Playoff format","Tiebreakers","League dues & payouts","Keeper / draft rules","Commissioner powers & disputes"];
+export default function Rules(){return <PageShell title="LEAGUE RULES" kicker="THE LAW"><section className="panel rulesDoc"><p className="lede">This page is ready for the official Dirty Dozens constitution. Replace these placeholders with your league's actual ESPN settings and house rules.</p>{rules.map((r,i)=><div className="ruleRow" key={r}><b>{String(i+1).padStart(2,"0")}</b><div><h3>{r}</h3><p>Add the official rule text here.</p></div></div>)}</section></PageShell>}

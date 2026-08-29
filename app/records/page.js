@@ -1,0 +1,2 @@
+import PageShell from "../../components/PageShell"; import { records } from "../../data/league";
+export default function Records(){return <PageShell title="RECORD BOOK" kicker="IMMORTALIZED"><div className="recordCards">{records.map(([label,value],i)=><article className="panel recordCard" key={label}><span>0{i+1}</span><h3>{label}</h3><strong>{value}</strong><p>Replace with the real record holder and season.</p></article>)}</div></PageShell>}

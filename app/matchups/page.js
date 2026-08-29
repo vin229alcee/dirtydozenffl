@@ -1,0 +1,4 @@
+import PageShell from "../../components/PageShell";
+import TeamBadge from "../../components/TeamBadge";
+import { weeklyMatchups } from "../../data/league";
+export default function Matchups(){return <PageShell title="MATCHUPS" kicker="2026 SEASON">{weeklyMatchups.length ? <div className="matchupGrid">{weeklyMatchups.map((m,i)=><article className="panel matchupCard" key={i}><TeamBadge team={m.home}/><strong className="bigScore">{m.scoreHome?.toFixed(1) ?? "—"}</strong><span className="finalTag">{m.status ?? "SCHEDULED"}</span><strong className="bigScore">{m.scoreAway?.toFixed(1) ?? "—"}</strong><TeamBadge team={m.away}/></article>)}</div> : <section className="panel emptyPage"><h2>WEEK 1 SCHEDULE PENDING</h2><p>Add the official ESPN schedule to <code>data/league.js</code> when it is available.</p></section>}</PageShell>}

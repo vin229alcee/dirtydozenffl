@@ -1,0 +1,2 @@
+import PageShell from "../../components/PageShell";
+export default function Commissioner(){return <PageShell title="COMMISSIONER DASHBOARD" kicker="PRIVATE AREA"><div className="adminGrid">{["Update scores","Edit standings","Publish power rankings","Add league news","Update records","Add champion"].map(x=><article className="panel adminCard" key={x}><h3>{x}</h3><p>Phase 2: connect this control to Supabase so edits publish without touching code.</p><button>Coming next</button></article>)}</div></PageShell>}

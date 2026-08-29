@@ -1,0 +1,2 @@
+import PageShell from "../../components/PageShell"; import { headlines } from "../../data/league";
+export default function News(){return <PageShell title="LEAGUE NEWS" kicker="FROM THE COMMISH"><div className="newsGrid">{headlines.concat(headlines).map((h,i)=><article className="panel storyCard" key={i}><span className="eyebrow">WEEK {Math.floor(i/3)+1}</span><h2>{h.title}</h2><p>{h.deck}</p><button>Read story →</button></article>)}</div></PageShell>}

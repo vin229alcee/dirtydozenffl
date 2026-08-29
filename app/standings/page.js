@@ -1,0 +1,2 @@
+import PageShell from "../../components/PageShell"; import { teams } from "../../data/league";
+export default function Standings(){return <PageShell title="STANDINGS" kicker="2026 SEASON"><section className="panel wideTable"><table><thead><tr><th>Rank</th><th>Team</th><th>Manager</th><th>W</th><th>L</th><th>PF</th><th>PA</th></tr></thead><tbody>{teams.map((t,i)=><tr key={t.id}><td>—</td><td><b>{t.name}</b></td><td>{t.manager}</td><td>{t.wins}</td><td>{t.losses}</td><td>—</td><td>—</td></tr>)}</tbody></table></section></PageShell>}
