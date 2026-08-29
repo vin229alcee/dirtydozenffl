@@ -12,7 +12,7 @@ async function getLiveLeagueData() {
 
   const supabase = createClient(url, key, { auth: { persistSession: false, autoRefreshToken: false } });
   const [teamsRes, matchupsRes, highRes, newsRes, dirtyRes] = await Promise.all([
-    supabase.from("teams").select("*") ,
+    supabase.from("teams").select("*"),
     supabase.from("matchups").select("*").eq("season", 2026).order("week", { ascending: false }).order("id"),
     supabase.from("weekly_high_scores").select("*").eq("season", 2026).order("week", { ascending: false }),
     supabase.from("league_news").select("id,title,body,published_at").order("published_at", { ascending: false }).limit(3),
@@ -56,19 +56,29 @@ export default async function Home() {
         <Link className="ghostButton" href="/matchups">View matchups</Link>
       </section>
 
-      <section className="panel span2">
+      <section className="panel span2 matchupPanel">
         <div className="panelTitle"><h3>WEEK {live.week} MATCHUPS</h3><Link href="/matchups">VIEW ALL</Link></div>
-        {live.matchups.length ? <div className="scoreList">{live.matchups.map((m) => <div className="scoreRow" key={m.id}><strong>{byId[m.team1_id]?.name || "Team"}</strong><strong>{m.team1_score == null ? "—" : Number(m.team1_score).toFixed(1)}</strong><span>{m.completed ? "FINAL" : "SCHEDULED"}</span><strong>{m.team2_score == null ? "—" : Number(m.team2_score).toFixed(1)}</strong><strong>{byId[m.team2_id]?.name || "Team"}</strong></div>)}</div> : <div className="emptyPanel">Official Week 1 matchups have not been added yet.</div>}
+        {live.matchups.length ? <div className="matchupList">{live.matchups.map((m) => {
+          const team1 = byId[m.team1_id];
+          const team2 = byId[m.team2_id];
+          const score1 = m.team1_score == null ? null : Number(m.team1_score);
+          const score2 = m.team2_score == null ? null : Number(m.team2_score);
+          return <article className="homeMatchup" key={m.id}>
+            <div className={`homeMatchupTeam ${score1 != null && score2 != null && score1 > score2 ? "winner" : ""}`}><span>{team1?.name || "Team"}</span><strong>{score1 == null ? "—" : score1.toFixed(1)}</strong></div>
+            <div className="homeMatchupStatus">{m.completed ? "FINAL" : "SCHEDULED"}</div>
+            <div className={`homeMatchupTeam ${score1 != null && score2 != null && score2 > score1 ? "winner" : ""}`}><span>{team2?.name || "Team"}</span><strong>{score2 == null ? "—" : score2.toFixed(1)}</strong></div>
+          </article>;
+        })}</div> : <div className="emptyPanel">Official Week 1 matchups have not been added yet.</div>}
       </section>
 
       <section className="panel span2 highScoreTracker">
-        <div className="panelTitle"><h3>WEEKLY HIGH SCORE TRACKER</h3><span>2026 SEASON</span></div>
-        {live.highScores.length ? <div className="scoreList">{live.highScores.map((entry) => <div className="scoreRow" key={entry.week}><strong>WEEK {entry.week}</strong><span>{byId[entry.team_id]?.name || "Team"}</span><strong>{Number(entry.score).toFixed(1)}</strong></div>)}</div> : <div className="emptyPanel">Week 1 high score will appear here after the official results are saved.</div>}
+        <div className="panelTitle"><h3>WEEKLY HIGH SCORE</h3><span>2026 SEASON</span></div>
+        {live.highScores.length ? <div className="highScoreList">{live.highScores.map((entry) => <div className="highScoreItem" key={entry.week}><span>WEEK {entry.week}</span><strong>{byId[entry.team_id]?.name || "Team"}</strong><b>{Number(entry.score).toFixed(1)}</b></div>)}</div> : <div className="emptyPanel">Week 1 high score will appear here after the official results are saved.</div>}
       </section>
 
       <section className="panel standingsPanel">
         <div className="panelTitle"><h3>STANDINGS</h3><Link href="/standings">FULL</Link></div>
-        {standings.length ? <table><thead><tr><th>#</th><th>Team</th><th>W</th><th>L</th><th>PF</th></tr></thead><tbody>{standings.slice(0,8).map((t,i)=><tr key={t.id}><td>{i+1}</td><td>{t.name}</td><td>{t.wins ?? 0}</td><td>{t.losses ?? 0}</td><td>{Number(t.points_for || 0).toFixed(1)}</td></tr>)}</tbody></table> : <div className="emptyPanel">Standings will appear here once league data is available.</div>}
+        {standings.length ? <div className="standingsScroll"><table><thead><tr><th>#</th><th>Team</th><th>W</th><th>L</th><th>PF</th></tr></thead><tbody>{standings.slice(0,8).map((t,i)=><tr key={t.id}><td>{i+1}</td><td>{t.name}</td><td>{t.wins ?? 0}</td><td>{t.losses ?? 0}</td><td>{Number(t.points_for || 0).toFixed(1)}</td></tr>)}</tbody></table></div> : <div className="emptyPanel">Standings will appear here once league data is available.</div>}
       </section>
 
       <section className="panel rankingsPanel"><div className="panelTitle"><h3>POWER RANKINGS</h3><Link href="/power-rankings">FULL</Link></div><div className="emptyPanel">Preseason rankings have not been published.</div></section>
