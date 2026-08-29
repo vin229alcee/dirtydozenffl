@@ -5,36 +5,102 @@ import { league, records, headlines } from "../data/league";
 
 export const dynamic = "force-dynamic";
 
+const ESPN_LEAGUE_ID = "2145514194";
+const SEASON = 2026;
+const normalize = (value) => String(value || "").toLowerCase().replace(/[^a-z0-9]/g, "");
+
+function espnTeamName(team) {
+  if (!team) return "Unknown Team";
+  if (team.name) return team.name;
+  return [team.location, team.nickname].filter(Boolean).join(" ").trim() || team.abbrev || `ESPN Team ${team.id}`;
+}
+
+async function getEspnMatchups() {
+  const url = new URL(`https://lm-api-reads.fantasy.espn.com/apis/v3/games/ffl/seasons/${SEASON}/segments/0/leagues/${ESPN_LEAGUE_ID}`);
+  url.searchParams.append("view", "mTeam");
+  url.searchParams.append("view", "mMatchupScore");
+
+  const headers = {
+    accept: "application/json, text/plain, */*",
+    "user-agent": "DirtyDozensFFL/1.0",
+  };
+  if (process.env.ESPN_S2 && process.env.ESPN_SWID) {
+    headers.cookie = `espn_s2=${process.env.ESPN_S2}; SWID=${process.env.ESPN_SWID}`;
+  }
+
+  const response = await fetch(url, { headers, cache: "no-store" });
+  if (!response.ok) throw new Error(`ESPN returned ${response.status}`);
+  const data = await response.json();
+  const week = Number(data?.status?.currentMatchupPeriod || 1);
+  const teamById = new Map((data?.teams || []).map((team) => [Number(team.id), team]));
+  const games = (data?.schedule || []).filter((game) => Number(game.matchupPeriodId) === week && game.home && game.away);
+
+  return {
+    week,
+    matchups: games.map((game) => ({
+      id: `espn-${game.id}`,
+      team1_name: espnTeamName(teamById.get(Number(game.home.teamId))),
+      team2_name: espnTeamName(teamById.get(Number(game.away.teamId))),
+      team1_score: game.home.totalPoints == null ? null : Number(game.home.totalPoints),
+      team2_score: game.away.totalPoints == null ? null : Number(game.away.totalPoints),
+      completed: Boolean(game.winner && game.winner !== "UNDECIDED"),
+    })),
+  };
+}
+
 async function getLiveLeagueData() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const key = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
-  if (!url || !key) return { teams: [], matchups: [], highScores: [], news: [], dirtyPlayer: null, week: 1 };
+  if (!url || !key) return { teams: [], matchups: [], highScores: [], news: [], dirtyPlayer: null, week: 1, matchupSource: "SAVED RESULTS" };
 
   const supabase = createClient(url, key, { auth: { persistSession: false, autoRefreshToken: false } });
   const [teamsRes, matchupsRes, highRes, newsRes, dirtyRes] = await Promise.all([
     supabase.from("teams").select("*"),
-    supabase.from("matchups").select("*").eq("season", 2026).order("week", { ascending: false }).order("id"),
-    supabase.from("weekly_high_scores").select("*").eq("season", 2026).order("week", { ascending: false }),
+    supabase.from("matchups").select("*").eq("season", SEASON).order("week", { ascending: false }).order("id"),
+    supabase.from("weekly_high_scores").select("*").eq("season", SEASON).order("week", { ascending: false }),
     supabase.from("league_news").select("id,title,body,published_at").order("published_at", { ascending: false }).limit(3),
-    supabase.from("dirty_players").select("*").eq("season", 2026).order("week", { ascending: false }).limit(1),
+    supabase.from("dirty_players").select("*").eq("season", SEASON).order("week", { ascending: false }).limit(1),
   ]);
 
   const teams = teamsRes.data || [];
   const allMatchups = matchupsRes.data || [];
-  const latestWeek = allMatchups.length ? Math.max(...allMatchups.map((m) => Number(m.week))) : 1;
+  const savedWeek = allMatchups.length ? Math.max(...allMatchups.map((m) => Number(m.week))) : 1;
+  const byId = Object.fromEntries(teams.map((t) => [t.id, t]));
+
+  let week = savedWeek;
+  let matchupSource = "SAVED RESULTS";
+  let matchups = allMatchups.filter((m) => Number(m.week) === savedWeek).map((m) => ({
+    ...m,
+    team1_name: byId[m.team1_id]?.name || "Team",
+    team2_name: byId[m.team2_id]?.name || "Team",
+  }));
+
+  try {
+    const espn = await getEspnMatchups();
+    if (espn.matchups.length) {
+      week = espn.week;
+      matchups = espn.matchups;
+      matchupSource = "ESPN LIVE";
+    }
+  } catch {
+    // Keep saved Supabase matchup data as a fallback.
+  }
+
   return {
     teams,
-    matchups: allMatchups.filter((m) => Number(m.week) === latestWeek),
+    matchups,
     highScores: highRes.data || [],
     news: newsRes.data || [],
     dirtyPlayer: dirtyRes.data?.[0] || null,
-    week: latestWeek,
+    week,
+    matchupSource,
   };
 }
 
 export default async function Home() {
   const live = await getLiveLeagueData();
   const byId = Object.fromEntries(live.teams.map((t) => [t.id, t]));
+  const byName = Object.fromEntries(live.teams.map((t) => [normalize(t.name), t]));
   const standings = [...live.teams].sort((a, b) => Number(b.wins || 0) - Number(a.wins || 0) || Number(b.points_for || 0) - Number(a.points_for || 0) || String(a.name).localeCompare(String(b.name)));
   const homepageNews = live.news.length ? live.news.map((item) => ({ title: item.title, deck: item.body || "" })) : headlines;
   const dirtyTeam = live.dirtyPlayer ? byId[live.dirtyPlayer.team_id] : null;
@@ -51,24 +117,26 @@ export default async function Home() {
       <section className="panel championCard"><span className="eyebrow">DEFENDING CHAMPION</span><h2>{league.defendingChampion}</h2><strong>{league.defendingChampionManager}</strong><div className="belt">CHAMPION</div><p>{league.defendingChampionSeason} SEASON</p></section>
 
       <section className="panel matchupFeature">
-        <div className="panelTitle"><h3>NEXT UP — WEEK {live.week}</h3></div>
-        {live.matchups.length ? <div className="pendingState"><strong>{live.matchups.every((m) => m.completed) ? "RESULTS POSTED" : "MATCHUPS READY"}</strong><p>{live.matchups.length} matchups are loaded for Week {live.week}.</p></div> : <div className="pendingState"><strong>SCHEDULE PENDING</strong><p>Add the official ESPN matchups when they are set.</p></div>}
+        <div className="panelTitle"><h3>WEEK {live.week}</h3><span>{live.matchupSource}</span></div>
+        {live.matchups.length ? <div className="pendingState"><strong>{live.matchups.every((m) => m.completed) ? "RESULTS POSTED" : "LIVE MATCHUPS"}</strong><p>{live.matchups.length} matchups are updating from ESPN for Week {live.week}.</p></div> : <div className="pendingState"><strong>SCHEDULE PENDING</strong><p>The official ESPN matchups will appear automatically.</p></div>}
         <Link className="ghostButton" href="/matchups">View matchups</Link>
       </section>
 
       <section className="panel span2 matchupPanel">
-        <div className="panelTitle"><h3>WEEK {live.week} MATCHUPS</h3><Link href="/matchups">VIEW ALL</Link></div>
+        <div className="panelTitle"><h3>WEEK {live.week} MATCHUPS</h3><span>{live.matchupSource}</span><Link href="/matchups">VIEW ALL</Link></div>
         {live.matchups.length ? <div className="matchupList">{live.matchups.map((m) => {
-          const team1 = byId[m.team1_id];
-          const team2 = byId[m.team2_id];
+          const team1 = m.team1_name ? byName[normalize(m.team1_name)] : byId[m.team1_id];
+          const team2 = m.team2_name ? byName[normalize(m.team2_name)] : byId[m.team2_id];
+          const team1Name = m.team1_name || team1?.name || "Team";
+          const team2Name = m.team2_name || team2?.name || "Team";
           const score1 = m.team1_score == null ? null : Number(m.team1_score);
           const score2 = m.team2_score == null ? null : Number(m.team2_score);
           return <article className="homeMatchup" key={m.id}>
-            <div className={`homeMatchupTeam ${score1 != null && score2 != null && score1 > score2 ? "winner" : ""}`}><span>{team1?.name || "Team"}</span><strong>{score1 == null ? "—" : score1.toFixed(1)}</strong></div>
-            <div className="homeMatchupStatus">{m.completed ? "FINAL" : "SCHEDULED"}</div>
-            <div className={`homeMatchupTeam ${score1 != null && score2 != null && score2 > score1 ? "winner" : ""}`}><span>{team2?.name || "Team"}</span><strong>{score2 == null ? "—" : score2.toFixed(1)}</strong></div>
+            <div className={`homeMatchupTeam ${score1 != null && score2 != null && score1 > score2 ? "winner" : ""}`}><span>{team1Name}</span><strong>{score1 == null ? "—" : score1.toFixed(1)}</strong></div>
+            <div className="homeMatchupStatus">{m.completed ? "FINAL" : live.matchupSource === "ESPN LIVE" ? "LIVE / SCHEDULED" : "SCHEDULED"}</div>
+            <div className={`homeMatchupTeam ${score1 != null && score2 != null && score2 > score1 ? "winner" : ""}`}><span>{team2Name}</span><strong>{score2 == null ? "—" : score2.toFixed(1)}</strong></div>
           </article>;
-        })}</div> : <div className="emptyPanel">Official Week 1 matchups have not been added yet.</div>}
+        })}</div> : <div className="emptyPanel">Official Week {live.week} matchups have not been added yet.</div>}
       </section>
 
       <section className="panel span2 highScoreTracker">
