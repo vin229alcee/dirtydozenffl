@@ -8,6 +8,7 @@ const supabase = getSupabase();
 const blankMatchups = () => Array.from({ length: 6 }, () => ({ team1_id: '', team2_id: '', team1_score: '', team2_score: '' }));
 const blankRankings = () => Array.from({ length: 12 }, () => ({ team_id: '', commentary: '' }));
 const normalize = value => String(value || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+const blankRecord = () => ({ record_name: '', record_value: '', team_id: '', season: '', week: '' });
 
 export default function CommissionerPage() {
   const [session, setSession] = useState(null);
@@ -25,7 +26,9 @@ export default function CommissionerPage() {
   const [news, setNews] = useState({ title: '', body: '' });
   const [newsItems, setNewsItems] = useState([]);
   const [editingNewsId, setEditingNewsId] = useState(null);
-  const [record, setRecord] = useState({ record_name: '', record_value: '', team_id: '', season: '', week: '' });
+  const [record, setRecord] = useState(blankRecord());
+  const [recordItems, setRecordItems] = useState([]);
+  const [editingRecordId, setEditingRecordId] = useState(null);
   const [champion, setChampion] = useState({ season: '', team_id: '' });
   const [espnLeagueId, setEspnLeagueId] = useState('');
   const [espnLoading, setEspnLoading] = useState(false);
@@ -42,6 +45,7 @@ export default function CommissionerPage() {
     if (!supabase || !session) return;
     supabase.from('teams').select('*').order('id').then(({ data }) => setTeams(data || []));
     loadNews();
+    loadRecords();
     const savedLeagueId = window.localStorage.getItem('dirty-dozens-espn-league-id');
     if (savedLeagueId) setEspnLeagueId(savedLeagueId);
   }, [session]);
@@ -71,6 +75,11 @@ export default function CommissionerPage() {
   async function loadNews() {
     const { data } = await supabase.from('league_news').select('*').order('published_at', { ascending: false }).limit(12);
     setNewsItems(data || []);
+  }
+
+  async function loadRecords() {
+    const { data } = await supabase.from('league_records').select('*').order('id', { ascending: false });
+    setRecordItems(data || []);
   }
 
   const scoreEntries = useMemo(() => matchups.flatMap(m => [
@@ -207,9 +216,42 @@ export default function CommissionerPage() {
 
   async function saveRecord() {
     if (!record.record_name.trim() || !record.record_value.trim()) return setStatus('Record name and value are required.');
-    const { error } = await supabase.from('league_records').insert({ record_name: record.record_name.trim(), record_value: record.record_value.trim(), team_id: record.team_id ? Number(record.team_id) : null, season: record.season ? Number(record.season) : null, week: record.week ? Number(record.week) : null });
-    if (!error) setRecord({ record_name: '', record_value: '', team_id: '', season: '', week: '' });
-    setStatus(error ? error.message : 'Historical record added.');
+    const payload = { record_name: record.record_name.trim(), record_value: record.record_value.trim(), team_id: record.team_id ? Number(record.team_id) : null, season: record.season ? Number(record.season) : null, week: record.week ? Number(record.week) : null };
+    let error;
+    if (editingRecordId) ({ error } = await supabase.from('league_records').update(payload).eq('id', editingRecordId));
+    else ({ error } = await supabase.from('league_records').insert(payload));
+    if (!error) {
+      setRecord(blankRecord());
+      setEditingRecordId(null);
+      await loadRecords();
+    }
+    setStatus(error ? error.message : editingRecordId ? 'Historical record updated.' : 'Historical record added.');
+  }
+
+  function editRecord(item) {
+    setEditingRecordId(item.id);
+    setRecord({
+      record_name: item.record_name || '',
+      record_value: item.record_value || '',
+      team_id: item.team_id == null ? '' : String(item.team_id),
+      season: item.season == null ? '' : String(item.season),
+      week: item.week == null ? '' : String(item.week),
+    });
+  }
+
+  function cancelRecordEdit() {
+    setEditingRecordId(null);
+    setRecord(blankRecord());
+  }
+
+  async function deleteRecord(id) {
+    if (!window.confirm('Delete this historical record?')) return;
+    const { error } = await supabase.from('league_records').delete().eq('id', id);
+    if (!error) {
+      if (editingRecordId === id) cancelRecordEdit();
+      await loadRecords();
+    }
+    setStatus(error ? error.message : 'Historical record deleted.');
   }
 
   async function saveChampion() {
@@ -233,6 +275,7 @@ export default function CommissionerPage() {
   if (!session) return <PageShell title="Commissioner"><section className="panel commissionerAuth"><div className="panelTitle"><h3>COMMISSIONER LOGIN</h3><span>SECURE ACCESS</span></div><form className="commissionerForm" onSubmit={signIn}><label>Email<input type="email" value={email} onChange={e => setEmail(e.target.value)} required /></label><label>Password<input type="password" value={password} onChange={e => setPassword(e.target.value)} required /></label><button className="primaryButton">Sign In</button></form>{status && <p>{status}</p>}</section></PageShell>;
 
   const options = <><option value="">Choose Team</option>{teams.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}</>;
+  const teamById = Object.fromEntries(teams.map(t => [t.id, t]));
 
   return <PageShell title="Commissioner">
     <div className="commissionerTopbar"><div><strong>Commissioner Control Room</strong><div style={{ color: '#8e98a3', fontSize: 12 }}>Weekly data loads automatically when you change weeks.</div></div><button className="secondaryButton" onClick={() => supabase.auth.signOut()}>Sign Out</button></div>
@@ -247,7 +290,7 @@ export default function CommissionerPage() {
 
     <section className="panel commissionerPanel"><div className="panelTitle"><h3>CHAMPIONSHIP HISTORY</h3><span>TROPHY CASE</span></div><div className="commissionerForm"><label>Season<input inputMode="numeric" placeholder="2025" value={champion.season} onChange={e => setChampion({ ...champion, season: e.target.value })} /></label><label>Champion<select value={champion.team_id} onChange={e => setChampion({ ...champion, team_id: e.target.value })}>{options}</select></label><button className="primaryButton" onClick={saveChampion}>Save Champion</button></div></section>
 
-    <section className="panel commissionerPanel"><div className="panelTitle"><h3>HISTORICAL RECORD BOOK</h3><span>MANUAL ENTRY</span></div><div className="commissionerForm"><label>Record<input placeholder="e.g. Most Points in a Season" value={record.record_name} onChange={e => setRecord({ ...record, record_name: e.target.value })} /></label><label>Record Value<input placeholder="e.g. 1,842.6" value={record.record_value} onChange={e => setRecord({ ...record, record_value: e.target.value })} /></label><label>Team<select value={record.team_id} onChange={e => setRecord({ ...record, team_id: e.target.value })}>{options}</select></label><label>Season<input inputMode="numeric" placeholder="2025" value={record.season} onChange={e => setRecord({ ...record, season: e.target.value })} /></label><label>Week (optional)<input inputMode="numeric" placeholder="Optional" value={record.week} onChange={e => setRecord({ ...record, week: e.target.value })} /></label><button className="primaryButton" onClick={saveRecord}>Add Historical Record</button></div></section>
+    <section className="panel commissionerPanel"><div className="panelTitle"><h3>HISTORICAL RECORD BOOK</h3><span>{editingRecordId ? 'EDITING RECORD' : 'MANUAL ENTRY'}</span></div><div className="commissionerForm"><label>Record<input placeholder="e.g. Most Points in a Season" value={record.record_name} onChange={e => setRecord({ ...record, record_name: e.target.value })} /></label><label>Record Value<input placeholder="e.g. 1,842.6" value={record.record_value} onChange={e => setRecord({ ...record, record_value: e.target.value })} /></label><label>Team<select value={record.team_id} onChange={e => setRecord({ ...record, team_id: e.target.value })}>{options}</select></label><label>Season<input inputMode="numeric" placeholder="2025" value={record.season} onChange={e => setRecord({ ...record, season: e.target.value })} /></label><label>Week (optional)<input inputMode="numeric" placeholder="Optional" value={record.week} onChange={e => setRecord({ ...record, week: e.target.value })} /></label><button className="primaryButton" onClick={saveRecord}>{editingRecordId ? 'Save Record Changes' : 'Add Historical Record'}</button>{editingRecordId && <button className="secondaryButton" onClick={cancelRecordEdit}>Cancel Edit</button>}</div>{recordItems.length > 0 && <div style={{ marginTop: 20, display: 'grid', gap: 10 }}>{recordItems.map(item => <div key={item.id} style={{ borderTop: '1px solid #2a3138', paddingTop: 12 }}><strong style={{ display: 'block' }}>{item.record_name}</strong><span style={{ display: 'block', color: '#d9aa4e', margin: '4px 0' }}>{item.record_value}</span><small style={{ display: 'block', color: '#8e98a3', marginBottom: 9 }}>{item.team_id ? teamById[item.team_id]?.name || 'Team' : 'League Record'}{item.season ? ` · ${item.season}` : ''}{item.week ? ` Week ${item.week}` : ''}</small><div style={{ display: 'flex', gap: 8 }}><button className="secondaryButton" onClick={() => editRecord(item)}>Edit</button><button className="secondaryButton" onClick={() => deleteRecord(item.id)}>Delete</button></div></div>)}</div>}</section>
 
     {status && <div className="statusBar" onClick={() => setStatus('')}>{status}<span>×</span></div>}
   </PageShell>;
