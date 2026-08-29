@@ -24,16 +24,19 @@ export default async function History() {
   }, {});
 
   return <PageShell title="LEAGUE HISTORY" kicker="THE ARCHIVES">
-    {champions.length ? <div className="historyGrid">
+    {champions.length ? <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(260px,1fr))",gap:14}}>
       {champions.map((champion, index) => {
         const team = byId[champion.team_id];
         const titles = titleCounts[champion.team_id] || 1;
-        return <article className="panel historyCard" key={champion.id}>
-          <div className="historySeason"><span>{champion.season}</span><b>{index === 0 ? "DEFENDING CHAMPION" : "LEAGUE CHAMPION"}</b></div>
-          <div className="historyTrophy">🏆</div>
-          <h2>{team?.name || "Champion"}</h2>
-          <p>{team?.manager || "Manager"}</p>
-          <small>{titles} {titles === 1 ? "TITLE" : "TITLES"} IN RECORDED HISTORY</small>
+        return <article className="panel" key={champion.id} style={{borderRadius:14,position:"relative",overflow:"hidden"}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:12,borderBottom:"1px solid #2a3138",paddingBottom:12,marginBottom:16}}>
+            <span style={{fontFamily:"Oswald, sans-serif",fontSize:30,fontWeight:700}}>{champion.season}</span>
+            <b style={{fontSize:9,letterSpacing:1.2,color:index===0?"#d9aa4e":"#8e98a3"}}>{index === 0 ? "DEFENDING CHAMPION" : "LEAGUE CHAMPION"}</b>
+          </div>
+          <div style={{fontSize:38,marginBottom:8}}>🏆</div>
+          <h2 style={{fontFamily:"Oswald, sans-serif",fontSize:24,lineHeight:1.1,margin:"0 0 6px"}}>{team?.name || "Champion"}</h2>
+          <p style={{color:"#8e98a3",margin:"0 0 18px"}}>{team?.manager || "Manager"}</p>
+          <small style={{fontSize:9,letterSpacing:1,color:"#d9aa4e",fontWeight:800}}>{titles} {titles === 1 ? "TITLE" : "TITLES"} IN RECORDED HISTORY</small>
         </article>;
       })}
     </div> : <section className="panel emptyPanel">Championship history will appear here as seasons are added by the Commissioner.</section>}
