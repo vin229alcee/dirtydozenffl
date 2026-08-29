@@ -1,9 +1,35 @@
 import Link from "next/link";
+import { createClient } from "@supabase/supabase-js";
 import Header from "../components/Header";
 import TeamBadge from "../components/TeamBadge";
 import { league, teams, weeklyMatchups, weeklyHighScores, records, headlines } from "../data/league";
 
-export default function Home() {
+export const dynamic = "force-dynamic";
+
+async function getLiveNews() {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const key = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
+  if (!url || !key) return [];
+
+  const supabase = createClient(url, key, {
+    auth: { persistSession: false, autoRefreshToken: false },
+  });
+
+  const { data, error } = await supabase
+    .from("league_news")
+    .select("id,title,body,published_at")
+    .order("published_at", { ascending: false })
+    .limit(3);
+
+  return error ? [] : (data || []);
+}
+
+export default async function Home() {
+  const liveNews = await getLiveNews();
+  const homepageNews = liveNews.length
+    ? liveNews.map((item) => ({ title: item.title, deck: item.body || "" }))
+    : headlines;
+
   return <>
     <div className="topline">{league.tagline}</div>
     <Header />
@@ -54,7 +80,7 @@ export default function Home() {
 
       <section className="panel newsPanel">
         <div className="panelTitle"><h3>LEAGUE NEWS</h3><Link href="/news">VIEW ALL</Link></div>
-        {headlines.map((h,i)=><article key={i}><span className="newsIndex">0{i+1}</span><div><h4>{h.title}</h4><p>{h.deck}</p></div></article>)}
+        {homepageNews.map((h,i)=><article key={`${h.title}-${i}`}><span className="newsIndex">0{i+1}</span><div><h4>{h.title}</h4><p>{h.deck}</p></div></article>)}
       </section>
 
       <section className="panel recordsPanel">
