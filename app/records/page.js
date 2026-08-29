@@ -5,6 +5,7 @@ export const dynamic = "force-dynamic";
 
 const ESPN_LEAGUE_ID = "2145514194";
 const CURRENT_SEASON = 2026;
+const MAP_RECORD = "__OWNER_MAP__";
 
 function teamName(team) {
   if (!team) return "Team";
@@ -126,7 +127,7 @@ async function getCommissionerRecords() {
   const supabase = createClient(url, key, { auth: { persistSession: false, autoRefreshToken: false } });
   const [{ data: teams }, { data: records }] = await Promise.all([
     supabase.from("teams").select("*"),
-    supabase.from("league_records").select("*").order("id"),
+    supabase.from("league_records").select("*").neq("record_name", MAP_RECORD).order("id"),
   ]);
   return { teams: teams || [], records: records || [] };
 }
