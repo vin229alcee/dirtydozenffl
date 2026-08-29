@@ -1,5 +1,156 @@
 import { createClient } from "@supabase/supabase-js";
 import PageShell from "../../components/PageShell";
-export const dynamic="force-dynamic";
-async function getData(){const u=process.env.NEXT_PUBLIC_SUPABASE_URL,k=process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;if(!u||!k)return{teams:[],games:[],records:[]};const s=createClient(u,k,{auth:{persistSession:false,autoRefreshToken:false}});const[{data:teams},{data:games},{data:records}]=await Promise.all([s.from('teams').select('*'),s.from('matchups').select('*').eq('completed',true),s.from('league_records').select('*').order('id')]);return{teams:teams||[],games:games||[],records:records||[]}}
-export default async function Records(){const{teams,games,records}=await getData(),byId=Object.fromEntries(teams.map(t=>[t.id,t]));const scores=games.flatMap(g=>[{team:g.team1_id,score:Number(g.team1_score),season:g.season,week:g.week},{team:g.team2_id,score:Number(g.team2_score),season:g.season,week:g.week}]);const high=scores.length?[...scores].sort((a,b)=>b.score-a.score)[0]:null,low=scores.length?[...scores].sort((a,b)=>a.score-b.score)[0]:null;const margins=games.map(g=>({...g,margin:Math.abs(Number(g.team1_score)-Number(g.team2_score))}));const blowout=margins.length?[...margins].sort((a,b)=>b.margin-a.margin)[0]:null,closest=margins.length?[...margins].sort((a,b)=>a.margin-b.margin)[0]:null;const auto=[high&&['Highest Weekly Score',high.score.toFixed(1),byId[high.team]?.name,high.season,high.week],low&&['Lowest Weekly Score',low.score.toFixed(1),byId[low.team]?.name,low.season,low.week],blowout&&['Biggest Blowout',blowout.margin.toFixed(1)+' pts',(Number(blowout.team1_score)>Number(blowout.team2_score)?byId[blowout.team1_id]?.name:byId[blowout.team2_id]?.name),blowout.season,blowout.week],closest&&['Closest Game',closest.margin.toFixed(1)+' pts',(byId[closest.team1_id]?.name||'Team')+' vs '+(byId[closest.team2_id]?.name||'Team'),closest.season,closest.week]].filter(Boolean);return <PageShell title="RECORD BOOK" kicker="IMMORTALIZED"><div className="panelTitle"><h3>AUTOMATIC RECORDS</h3><span>FROM SAVED MATCHUPS</span></div>{auto.length?<div className="recordCards">{auto.map((r,i)=><article className="panel recordCard" key={r[0]}><span>{String(i+1).padStart(2,'0')}</span><h3>{r[0]}</h3><strong>{r[1]}</strong><p>{r[2]} · {r[3]} Week {r[4]}</p></article>)}</div>:<section className="panel emptyPanel">Automatic records will appear after official matchups are saved.</section>}<div className="panelTitle" style={{marginTop:28}}><h3>LEAGUE HISTORY</h3><span>COMMISSIONER RECORDS</span></div>{records.length?<div className="recordCards">{records.map((r,i)=><article className="panel recordCard" key={r.id}><span>{String(i+1).padStart(2,'0')}</span><h3>{r.record_name}</h3><strong>{r.record_value||'—'}</strong><p>{byId[r.team_id]?.name||'League Record'}{r.season?` · ${r.season}`:''}{r.week?` Week ${r.week}`:''}</p></article>)}</div>:<section className="panel emptyPanel">Historical league records can be added from the Commissioner dashboard.</section>}</PageShell>}
+
+export const dynamic = "force-dynamic";
+
+const ESPN_LEAGUE_ID = "2145514194";
+const CURRENT_SEASON = 2026;
+
+function teamName(team) {
+  if (!team) return "Team";
+  if (team.name) return team.name;
+  return [team.location, team.nickname].filter(Boolean).join(" ").trim() || team.abbrev || `Team ${team.id}`;
+}
+
+function espnHeaders() {
+  const headers = { accept: "application/json, text/plain, */*", "user-agent": "DirtyDozensFFL/1.0" };
+  if (process.env.ESPN_S2 && process.env.ESPN_SWID) headers.cookie = `espn_s2=${process.env.ESPN_S2}; SWID=${process.env.ESPN_SWID}`;
+  return headers;
+}
+
+async function fetchSeason(season) {
+  const url = new URL(`https://lm-api-reads.fantasy.espn.com/apis/v3/games/ffl/seasons/${season}/segments/0/leagues/${ESPN_LEAGUE_ID}`);
+  url.searchParams.append("view", "mTeam");
+  url.searchParams.append("view", "mStandings");
+  url.searchParams.append("view", "mMatchupScore");
+  url.searchParams.append("view", "mStatus");
+  const response = await fetch(url, { headers: espnHeaders(), cache: "no-store" });
+  if (!response.ok) throw new Error(`ESPN ${season}: ${response.status}`);
+  return response.json();
+}
+
+async function getEspnArchive() {
+  try {
+    const current = await fetchSeason(CURRENT_SEASON);
+    const previous = [...new Set((current?.status?.previousSeasons || []).map(Number))]
+      .filter((season) => season > 2000 && season < CURRENT_SEASON);
+    const seasonIds = [...previous, CURRENT_SEASON].sort((a, b) => a - b);
+    const results = await Promise.all(seasonIds.map(async (season) => {
+      try { return { season, data: season === CURRENT_SEASON ? current : await fetchSeason(season) }; }
+      catch { return null; }
+    }));
+    return results.filter(Boolean);
+  } catch {
+    return [];
+  }
+}
+
+function buildAutomaticRecords(archive) {
+  const games = [];
+  const seasonTotals = [];
+  const teamLabels = new Map();
+
+  for (const { season, data } of archive) {
+    const teams = new Map((data?.teams || []).map((team) => {
+      const label = teamName(team);
+      teamLabels.set(`${season}:${team.id}`, label);
+      const overall = team?.record?.overall || {};
+      seasonTotals.push({ season, teamId: Number(team.id), name: label, points: Number(overall.pointsFor || 0) });
+      return [Number(team.id), team];
+    }));
+
+    for (const game of data?.schedule || []) {
+      if (!game?.home || !game?.away || !game.winner || game.winner === "UNDECIDED") continue;
+      const homeScore = Number(game.home.totalPoints);
+      const awayScore = Number(game.away.totalPoints);
+      if (!Number.isFinite(homeScore) || !Number.isFinite(awayScore)) continue;
+      games.push({
+        season,
+        week: Number(game.matchupPeriodId || 0),
+        homeId: Number(game.home.teamId),
+        awayId: Number(game.away.teamId),
+        homeName: teamName(teams.get(Number(game.home.teamId))),
+        awayName: teamName(teams.get(Number(game.away.teamId))),
+        homeScore,
+        awayScore,
+        winner: game.winner,
+        margin: Math.abs(homeScore - awayScore),
+      });
+    }
+  }
+
+  const scores = games.flatMap((game) => [
+    { season: game.season, week: game.week, team: game.homeName, score: game.homeScore },
+    { season: game.season, week: game.week, team: game.awayName, score: game.awayScore },
+  ]);
+
+  const high = scores.length ? [...scores].sort((a, b) => b.score - a.score)[0] : null;
+  const low = scores.length ? [...scores].sort((a, b) => a.score - b.score)[0] : null;
+  const blowout = games.length ? [...games].sort((a, b) => b.margin - a.margin)[0] : null;
+  const closest = games.length ? [...games].sort((a, b) => a.margin - b.margin)[0] : null;
+  const seasonHigh = seasonTotals.length ? [...seasonTotals].sort((a, b) => b.points - a.points)[0] : null;
+
+  let bestStreak = null;
+  const bySeasonTeam = new Map();
+  for (const game of [...games].sort((a, b) => a.season - b.season || a.week - b.week)) {
+    for (const side of ["home", "away"]) {
+      const id = side === "home" ? game.homeId : game.awayId;
+      const name = side === "home" ? game.homeName : game.awayName;
+      const won = (side === "home" && game.winner === "HOME") || (side === "away" && game.winner === "AWAY");
+      const key = `${game.season}:${id}`;
+      const current = bySeasonTeam.get(key) || { count: 0, startWeek: null };
+      if (won) {
+        const next = { count: current.count + 1, startWeek: current.count ? current.startWeek : game.week };
+        bySeasonTeam.set(key, next);
+        if (!bestStreak || next.count > bestStreak.count) bestStreak = { count: next.count, season: game.season, startWeek: next.startWeek, endWeek: game.week, team: name };
+      } else {
+        bySeasonTeam.set(key, { count: 0, startWeek: null });
+      }
+    }
+  }
+
+  return [
+    high && { name: "Highest Weekly Score", value: high.score.toFixed(1), detail: high.team, season: high.season, week: high.week },
+    low && { name: "Lowest Weekly Score", value: low.score.toFixed(1), detail: low.team, season: low.season, week: low.week },
+    blowout && { name: "Biggest Blowout", value: `${blowout.margin.toFixed(1)} pts`, detail: blowout.winner === "HOME" ? blowout.homeName : blowout.awayName, season: blowout.season, week: blowout.week },
+    closest && { name: "Closest Game", value: `${closest.margin.toFixed(1)} pts`, detail: `${closest.homeName} vs ${closest.awayName}`, season: closest.season, week: closest.week },
+    seasonHigh && { name: "Highest Season Points", value: seasonHigh.points.toFixed(1), detail: seasonHigh.name, season: seasonHigh.season, week: null },
+    bestStreak && { name: "Longest Winning Streak", value: `${bestStreak.count} wins`, detail: bestStreak.team, season: bestStreak.season, week: bestStreak.endWeek },
+  ].filter(Boolean);
+}
+
+async function getCommissionerRecords() {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const key = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
+  if (!url || !key) return { teams: [], records: [] };
+  const supabase = createClient(url, key, { auth: { persistSession: false, autoRefreshToken: false } });
+  const [{ data: teams }, { data: records }] = await Promise.all([
+    supabase.from("teams").select("*"),
+    supabase.from("league_records").select("*").order("id"),
+  ]);
+  return { teams: teams || [], records: records || [] };
+}
+
+export default async function Records() {
+  const [archive, local] = await Promise.all([getEspnArchive(), getCommissionerRecords()]);
+  const auto = buildAutomaticRecords(archive);
+  const byId = Object.fromEntries(local.teams.map((team) => [team.id, team]));
+
+  return <PageShell title="RECORD BOOK" kicker="IMMORTALIZED">
+    <div className="panelTitle"><h3>AUTOMATIC RECORDS</h3><span>ESPN ALL-TIME ARCHIVE</span></div>
+    {auto.length ? <div className="recordCards">{auto.map((record, index) => <article className="panel recordCard" key={record.name}>
+      <span>{String(index + 1).padStart(2, "0")}</span>
+      <h3>{record.name}</h3>
+      <strong>{record.value}</strong>
+      <p>{record.detail}{record.season ? ` · ${record.season}` : ""}{record.week ? ` Week ${record.week}` : ""}</p>
+    </article>)}</div> : <section className="panel emptyPanel">ESPN record data will appear once completed league games are available.</section>}
+
+    <div className="panelTitle" style={{marginTop:28}}><h3>COMMISSIONER RECORDS</h3><span>HISTORICAL OVERRIDES & SPECIAL RECORDS</span></div>
+    {local.records.length ? <div className="recordCards">{local.records.map((record, index) => <article className="panel recordCard" key={record.id}>
+      <span>{String(index + 1).padStart(2, "0")}</span>
+      <h3>{record.record_name}</h3>
+      <strong>{record.record_value || "—"}</strong>
+      <p>{byId[record.team_id]?.name || "League Record"}{record.season ? ` · ${record.season}` : ""}{record.week ? ` Week ${record.week}` : ""}</p>
+    </article>)}</div> : <section className="panel emptyPanel">Special or legacy records can still be added from the Commissioner dashboard.</section>}
+  </PageShell>;
+}
