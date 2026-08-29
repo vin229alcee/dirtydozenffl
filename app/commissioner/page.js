@@ -5,6 +5,7 @@ import PageShell from '../../components/PageShell';
 import { getSupabase } from '../../lib/supabase';
 
 const supabase = getSupabase();
+const blankMatchups = () => Array.from({ length: 6 }, () => ({ team1_id: '', team2_id: '', team1_score: '', team2_score: '' }));
 
 export default function CommissionerPage() {
   const [session, setSession] = useState(null);
@@ -13,7 +14,7 @@ export default function CommissionerPage() {
   const [status, setStatus] = useState('');
   const [teams, setTeams] = useState([]);
   const [week, setWeek] = useState(1);
-  const [matchups, setMatchups] = useState(Array.from({ length: 6 }, () => ({ team1_id: '', team2_id: '', team1_score: '', team2_score: '' })));
+  const [matchups, setMatchups] = useState(blankMatchups());
   const [dirtyPlayer, setDirtyPlayer] = useState({ team_id: '', player_name: '', reason: '' });
   const [news, setNews] = useState({ title: '', body: '' });
 
@@ -44,27 +45,9 @@ export default function CommissionerPage() {
     setStatus(error ? error.message : 'Signed in.');
   }
 
-  async function saveWeek() {
-    setStatus('Saving Week ' + week + '…');
-    const valid = matchups.filter((m) => m.team1_id && m.team2_id && m.team1_score !== '' && m.team2_score !== '');
-    if (valid.length !== 6) return setStatus('Enter all 6 matchups and scores before saving.');
-    const selected = valid.flatMap((m) => [m.team1_id, m.team2_id]);
-    if (new Set(selected).size !== 12) return setStatus('Each team must appear exactly once in the week.');
-
-    const rows = valid.map((m) => ({ season: 2026, week: Number(week), team1_id: Number(m.team1_id), team2_id: Number(m.team2_id), team1_score: Number(m.team1_score), team2_score: Number(m.team2_score), completed: true }));
-    const { error: deleteError } = await supabase.from('matchups').delete().eq('season', 2026).eq('week', Number(week));
-    if (deleteError) return setStatus(deleteError.message);
-    const { error: matchupError } = await supabase.from('matchups').insert(rows);
-    if (matchupError) return setStatus(matchupError.message);
-
-    const high = [...scoreEntries].sort((a, b) => b.score - a.score)[0];
-    if (high) {
-      const { error: highError } = await supabase.from('weekly_high_scores').upsert({ season: 2026, week: Number(week), team_id: high.team_id, score: high.score }, { onConflict: 'season,week' });
-      if (highError) return setStatus(highError.message);
-    }
-
+  async function recalculateStandings() {
     const { data: allMatchups, error: allError } = await supabase.from('matchups').select('*').eq('season', 2026).eq('completed', true);
-    if (allError) return setStatus(allError.message);
+    if (allError) throw allError;
     const standings = Object.fromEntries(teams.map((t) => [t.id, { wins: 0, losses: 0, points_for: 0, points_against: 0 }]));
     for (const m of allMatchups || []) {
       if (!standings[m.team1_id] || !standings[m.team2_id]) continue;
@@ -76,9 +59,43 @@ export default function CommissionerPage() {
     for (const team of teams) {
       const s = standings[team.id];
       const { error } = await supabase.from('teams').update({ wins: s.wins, losses: s.losses, points_for: s.points_for, points_against: s.points_against }).eq('id', team.id);
-      if (error) return setStatus(error.message);
+      if (error) throw error;
     }
+  }
+
+  async function saveWeek() {
+    setStatus('Saving Week ' + week + '…');
+    const valid = matchups.filter((m) => m.team1_id && m.team2_id && m.team1_score !== '' && m.team2_score !== '');
+    if (valid.length !== 6) return setStatus('Enter all 6 matchups and scores before saving.');
+    const selected = valid.flatMap((m) => [m.team1_id, m.team2_id]);
+    if (new Set(selected).size !== 12) return setStatus('Each team must appear exactly once in the week.');
+    const rows = valid.map((m) => ({ season: 2026, week: Number(week), team1_id: Number(m.team1_id), team2_id: Number(m.team2_id), team1_score: Number(m.team1_score), team2_score: Number(m.team2_score), completed: true }));
+    const { error: deleteError } = await supabase.from('matchups').delete().eq('season', 2026).eq('week', Number(week));
+    if (deleteError) return setStatus(deleteError.message);
+    const { error: matchupError } = await supabase.from('matchups').insert(rows);
+    if (matchupError) return setStatus(matchupError.message);
+    const high = [...scoreEntries].sort((a, b) => b.score - a.score)[0];
+    if (high) {
+      const { error: highError } = await supabase.from('weekly_high_scores').upsert({ season: 2026, week: Number(week), team_id: high.team_id, score: high.score }, { onConflict: 'season,week' });
+      if (highError) return setStatus(highError.message);
+    }
+    try { await recalculateStandings(); } catch (error) { return setStatus(error.message); }
     setStatus('Week ' + week + ' saved. Standings and weekly high score updated.');
+  }
+
+  async function resetWeek() {
+    if (!window.confirm(`Delete all saved Week ${week} results and recalculate standings?`)) return;
+    setStatus('Resetting Week ' + week + '…');
+    const { error: matchupError } = await supabase.from('matchups').delete().eq('season', 2026).eq('week', Number(week));
+    if (matchupError) return setStatus(matchupError.message);
+    const { error: highError } = await supabase.from('weekly_high_scores').delete().eq('season', 2026).eq('week', Number(week));
+    if (highError) return setStatus(highError.message);
+    const { error: dirtyError } = await supabase.from('dirty_players').delete().eq('season', 2026).eq('week', Number(week));
+    if (dirtyError) return setStatus(dirtyError.message);
+    try { await recalculateStandings(); } catch (error) { return setStatus(error.message); }
+    setMatchups(blankMatchups());
+    setDirtyPlayer({ team_id: '', player_name: '', reason: '' });
+    setStatus('Week ' + week + ' reset. Matchups, high score, Dirty Player, and standings were cleared/recalculated.');
   }
 
   async function saveNews() {
@@ -107,7 +124,7 @@ export default function CommissionerPage() {
         <div className="matchupVs">VS</div>
         <div className="matchupTeamLine"><select value={m.team2_id} onChange={(e) => updateMatchup(i, 'team2_id', e.target.value)}><option value="">Choose Team</option>{teams.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}</select><input inputMode="decimal" placeholder="Score" value={m.team2_score} onChange={(e) => updateMatchup(i, 'team2_score', e.target.value)} /></div>
       </div>)}</div>
-      <button className="primaryButton saveWeekButton" onClick={saveWeek}>Save Week {week}</button>
+      <div style={{display:'grid',gap:'10px'}}><button className="primaryButton saveWeekButton" onClick={saveWeek}>Save Week {week}</button><button className="secondaryButton" onClick={resetWeek}>Reset Week {week}</button></div>
     </section>
     <section className="commissionerGrid">
       <div className="panel commissionerPanel"><div className="panelTitle"><h3>LEAGUE NEWS</h3><span>PUBLISH</span></div><div className="commissionerForm"><label>Headline<input value={news.title} onChange={(e) => setNews({ ...news, title: e.target.value })} /></label><label>Story<textarea rows="5" value={news.body} onChange={(e) => setNews({ ...news, body: e.target.value })} /></label><button className="primaryButton" onClick={saveNews}>Publish News</button></div></div>
