@@ -6,6 +6,12 @@ export const dynamic = "force-dynamic";
 const ESPN_LEAGUE_ID = "2145514194";
 const CURRENT_SEASON = 2026;
 
+const KNOWN_CHAMPIONS = [
+  { id: "known-2024", season: 2024, team_id: null, team_name: "Joe B Wan Kenobi", manager: "Antonio Samilton", source: "LEAGUE ARCHIVE" },
+  { id: "known-2023", season: 2023, team_id: null, team_name: "It's Purdy Cool", manager: "Luke Erbacher", source: "LEAGUE ARCHIVE" },
+  { id: "known-2022", season: 2022, team_id: null, team_name: "Incredible Dbags", manager: "Vin Alcee", source: "LEAGUE ARCHIVE" },
+];
+
 function espnTeamName(team) {
   if (!team) return "Champion";
   if (team.name) return team.name;
@@ -77,37 +83,24 @@ async function getHistory() {
 
   const byId = Object.fromEntries(teams.map((team) => [team.id, team]));
   const espnChampions = await getEspnChampions();
-  const manualBySeason = new Map(manualChampions.map((champion) => [Number(champion.season), champion]));
+  const combinedBySeason = new Map();
 
-  const combined = espnChampions.map((champion) => {
-    const override = manualBySeason.get(Number(champion.season));
-    if (!override) return champion;
-    const team = byId[override.team_id];
-    manualBySeason.delete(Number(champion.season));
-    return {
-      ...champion,
-      id: override.id,
-      team_id: override.team_id,
-      team_name: team?.name || champion.team_name,
-      manager: team?.manager || champion.manager,
-      source: "COMMISSIONER",
-    };
-  });
+  for (const champion of espnChampions) combinedBySeason.set(Number(champion.season), champion);
+  for (const champion of KNOWN_CHAMPIONS) combinedBySeason.set(Number(champion.season), champion);
 
-  for (const override of manualBySeason.values()) {
+  for (const override of manualChampions) {
     const team = byId[override.team_id];
-    combined.push({
+    combinedBySeason.set(Number(override.season), {
       id: override.id,
       season: Number(override.season),
       team_id: override.team_id,
-      team_name: team?.name || "Champion",
-      manager: team?.manager || "Manager",
+      team_name: team?.name || combinedBySeason.get(Number(override.season))?.team_name || "Champion",
+      manager: team?.manager || combinedBySeason.get(Number(override.season))?.manager || "Manager",
       source: "COMMISSIONER",
     });
   }
 
-  combined.sort((a, b) => Number(b.season) - Number(a.season));
-  return combined;
+  return [...combinedBySeason.values()].sort((a, b) => Number(b.season) - Number(a.season));
 }
 
 export default async function History() {
@@ -120,7 +113,7 @@ export default async function History() {
 
   return <PageShell title="LEAGUE HISTORY" kicker="THE ARCHIVES">
     {champions.length ? <>
-      <div className="weekSummary"><div><span>HISTORY</span><strong>{champions.length}</strong></div><b>ESPN ARCHIVE + COMMISSIONER OVERRIDES</b></div>
+      <div className="weekSummary"><div><span>HISTORY</span><strong>{champions.length}</strong></div><b>ESPN + LEAGUE ARCHIVE + COMMISSIONER</b></div>
       <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(260px,1fr))",gap:14}}>
         {champions.map((champion, index) => {
           const titles = titleCounts[champion.manager || champion.team_name] || 1;
@@ -136,6 +129,6 @@ export default async function History() {
           </article>;
         })}
       </div>
-    </> : <section className="panel emptyPanel">Championship history could not be loaded from ESPN yet. Commissioner entries will still appear here when available.</section>}
+    </> : <section className="panel emptyPanel">Championship history could not be loaded yet.</section>}
   </PageShell>;
 }
