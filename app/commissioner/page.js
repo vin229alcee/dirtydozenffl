@@ -7,6 +7,7 @@ import { getSupabase } from '../../lib/supabase';
 const supabase = getSupabase();
 const blankMatchups = () => Array.from({ length: 6 }, () => ({ team1_id: '', team2_id: '', team1_score: '', team2_score: '' }));
 const blankRankings = () => Array.from({ length: 12 }, () => ({ team_id: '', commentary: '' }));
+const normalize = value => String(value || '').toLowerCase().replace(/[^a-z0-9]/g, '');
 
 export default function CommissionerPage() {
   const [session, setSession] = useState(null);
@@ -26,6 +27,9 @@ export default function CommissionerPage() {
   const [editingNewsId, setEditingNewsId] = useState(null);
   const [record, setRecord] = useState({ record_name: '', record_value: '', team_id: '', season: '', week: '' });
   const [champion, setChampion] = useState({ season: '', team_id: '' });
+  const [espnLeagueId, setEspnLeagueId] = useState('');
+  const [espnLoading, setEspnLoading] = useState(false);
+  const [espnPreview, setEspnPreview] = useState(null);
 
   useEffect(() => {
     if (!supabase) return;
@@ -38,6 +42,8 @@ export default function CommissionerPage() {
     if (!supabase || !session) return;
     supabase.from('teams').select('*').order('id').then(({ data }) => setTeams(data || []));
     loadNews();
+    const savedLeagueId = window.localStorage.getItem('dirty-dozens-espn-league-id');
+    if (savedLeagueId) setEspnLeagueId(savedLeagueId);
   }, [session]);
 
   useEffect(() => {
@@ -52,16 +58,11 @@ export default function CommissionerPage() {
       supabase.from('power_rankings').select('*').eq('season', 2026).eq('week', selectedWeek).order('rank'),
       supabase.from('dirty_players').select('*').eq('season', 2026).eq('week', selectedWeek).maybeSingle(),
     ]);
-
     const hasMatchups = (savedMatchups || []).length === 6;
     const hasRankings = (savedRankings || []).length === 12;
     setExistingWeek(hasMatchups);
     setExistingRankings(hasRankings);
-    setMatchups(hasMatchups ? savedMatchups.map(m => ({
-      team1_id: String(m.team1_id), team2_id: String(m.team2_id),
-      team1_score: m.team1_score == null ? '' : String(m.team1_score),
-      team2_score: m.team2_score == null ? '' : String(m.team2_score),
-    })) : blankMatchups());
+    setMatchups(hasMatchups ? savedMatchups.map(m => ({ team1_id: String(m.team1_id), team2_id: String(m.team2_id), team1_score: m.team1_score == null ? '' : String(m.team1_score), team2_score: m.team2_score == null ? '' : String(m.team2_score) })) : blankMatchups());
     setRankings(hasRankings ? savedRankings.map(r => ({ team_id: String(r.team_id), commentary: r.commentary || '' })) : blankRankings());
     setDirtyPlayer(dirty ? { team_id: String(dirty.team_id), player_name: dirty.player_name || '', reason: dirty.reason || '' } : { team_id: '', player_name: '', reason: '' });
     setWeekLoading(false);
@@ -81,10 +82,38 @@ export default function CommissionerPage() {
   function updateRanking(i, field, value) { setRankings(prev => prev.map((r, x) => x === i ? { ...r, [field]: value } : r)); }
 
   async function signIn(e) {
-    e.preventDefault();
-    setStatus('Signing in…');
+    e.preventDefault(); setStatus('Signing in…');
     const { error } = await supabase.auth.signInWithPassword({ email, password });
     setStatus(error ? error.message : 'Signed in.');
+  }
+
+  async function previewEspnImport() {
+    if (!/^\d+$/.test(espnLeagueId.trim())) return setStatus('Enter the numeric ESPN league ID first.');
+    setEspnLoading(true); setEspnPreview(null); setStatus(`Checking ESPN Week ${week}…`);
+    window.localStorage.setItem('dirty-dozens-espn-league-id', espnLeagueId.trim());
+    try {
+      const response = await fetch(`/api/espn/import?leagueId=${encodeURIComponent(espnLeagueId.trim())}&season=2026&week=${Number(week)}`, { cache: 'no-store' });
+      const data = await response.json();
+      if (!response.ok) { setStatus(data.error || 'ESPN import failed.'); setEspnPreview(data); return; }
+      setEspnPreview(data);
+      setStatus(data.matchups?.length ? `ESPN Week ${week} loaded. Review before applying.` : `ESPN returned no Week ${week} matchups yet.`);
+    } catch (error) { setStatus(`ESPN import failed: ${error.message}`); }
+    finally { setEspnLoading(false); }
+  }
+
+  function applyEspnPreview() {
+    const games = espnPreview?.matchups || [];
+    if (games.length !== 6) return setStatus(`ESPN returned ${games.length} matchup${games.length === 1 ? '' : 's'}; expected 6.`);
+    const findLocal = espnTeam => teams.find(team => normalize(team.name) === normalize(espnTeam.name));
+    const mapped = games.map(game => {
+      const home = findLocal(game.home), away = findLocal(game.away);
+      return home && away ? { team1_id: String(home.id), team2_id: String(away.id), team1_score: game.home.score == null ? '' : String(game.home.score), team2_score: game.away.score == null ? '' : String(game.away.score) } : null;
+    });
+    if (mapped.some(item => !item)) {
+      const missing = [...new Set(games.flatMap(game => [game.home, game.away]).filter(team => !findLocal(team)).map(team => team.name))];
+      return setStatus(`ESPN loaded, but these team names need mapping: ${missing.join(', ')}`);
+    }
+    setMatchups(mapped); setStatus(`ESPN Week ${week} copied into the editor. Review the scores, then tap Save Week ${week}.`);
   }
 
   async function recalculateStandings() {
@@ -120,8 +149,7 @@ export default function CommissionerPage() {
       if (error) return setStatus(error.message);
     }
     try { await recalculateStandings(); } catch (e) { return setStatus(e.message); }
-    setExistingWeek(true);
-    setStatus(`Week ${week} saved. Standings and high score updated.`);
+    setExistingWeek(true); setStatus(`Week ${week} saved. Standings and high score updated.`);
   }
 
   async function resetWeek() {
@@ -132,8 +160,7 @@ export default function CommissionerPage() {
       if (error) return setStatus(error.message);
     }
     try { await recalculateStandings(); } catch (e) { return setStatus(e.message); }
-    setMatchups(blankMatchups()); setDirtyPlayer({ team_id: '', player_name: '', reason: '' }); setExistingWeek(false);
-    setStatus(`Week ${week} reset.`);
+    setMatchups(blankMatchups()); setDirtyPlayer({ team_id: '', player_name: '', reason: '' }); setExistingWeek(false); setStatus(`Week ${week} reset.`);
   }
 
   async function saveRankings() {
@@ -199,8 +226,7 @@ export default function CommissionerPage() {
       if (updateError) return setStatus(updateError.message);
     }
     setTeams(prev => prev.map(team => ({ ...team, championships: counts[team.id] || 0 })));
-    setChampion({ season: '', team_id: '' });
-    setStatus(`${season} champion saved. Team title counts updated.`);
+    setChampion({ season: '', team_id: '' }); setStatus(`${season} champion saved. Team title counts updated.`);
   }
 
   if (!supabase) return <PageShell title="Commissioner"><section className="panel"><p>Supabase configuration is missing.</p></section></PageShell>;
@@ -209,14 +235,15 @@ export default function CommissionerPage() {
   const options = <><option value="">Choose Team</option>{teams.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}</>;
 
   return <PageShell title="Commissioner">
-    <div className="commissionerTopbar"><div><strong>Commissioner Control Room</strong><div style={{ color: '#8e98a3', fontSize: 12 }}>Weekly data now loads automatically when you change weeks.</div></div><button className="secondaryButton" onClick={() => supabase.auth.signOut()}>Sign Out</button></div>
+    <div className="commissionerTopbar"><div><strong>Commissioner Control Room</strong><div style={{ color: '#8e98a3', fontSize: 12 }}>Weekly data loads automatically when you change weeks.</div></div><button className="secondaryButton" onClick={() => supabase.auth.signOut()}>Sign Out</button></div>
+
+    <section className="panel commissionerPanel"><div className="panelTitle"><h3>ESPN IMPORT</h3><span>WEEK {week}</span></div><div className="commissionerForm"><label>ESPN League ID<input inputMode="numeric" placeholder="Numeric league ID" value={espnLeagueId} onChange={e => setEspnLeagueId(e.target.value)} /></label><button className="primaryButton" onClick={previewEspnImport} disabled={espnLoading}>{espnLoading ? 'Checking ESPN…' : `Preview ESPN Week ${week}`}</button>{espnPreview?.matchups?.length > 0 && <><div className="espnPreviewList">{espnPreview.matchups.map((game, i) => <div className="espnPreviewGame" key={game.espnMatchupId ?? i}><span>{game.away.name} <b>{game.away.score ?? '—'}</b></span><span>{game.home.name} <b>{game.home.score ?? '—'}</b></span></div>)}</div><button className="secondaryButton" onClick={applyEspnPreview}>Copy ESPN Scores Into Week Editor</button></>}<small style={{ color: '#8e98a3', lineHeight: 1.5 }}>Preview first. Nothing is saved until you review the imported scores and tap Save Week below.</small></div></section>
 
     <section className="panel commissionerPanel"><div className="panelTitle"><h3>WEEKLY RESULTS</h3><span>{weekLoading ? 'LOADING…' : existingWeek ? `WEEK ${week} SAVED` : `WEEK ${week} NEW`}</span></div><label className="weekPicker">Week<input type="number" min="1" max="18" value={week} onChange={e => setWeek(e.target.value)} /></label><div className="matchupEditor">{matchups.map((m, i) => <div className="matchupCard" key={i}><div className="matchupNumber">MATCHUP {i + 1}</div><div className="matchupTeamLine"><select value={m.team1_id} onChange={e => updateMatchup(i, 'team1_id', e.target.value)}>{options}</select><input inputMode="decimal" placeholder="Score" value={m.team1_score} onChange={e => updateMatchup(i, 'team1_score', e.target.value)} /></div><div className="matchupVs">VS</div><div className="matchupTeamLine"><select value={m.team2_id} onChange={e => updateMatchup(i, 'team2_id', e.target.value)}>{options}</select><input inputMode="decimal" placeholder="Score" value={m.team2_score} onChange={e => updateMatchup(i, 'team2_score', e.target.value)} /></div></div>)}</div><div style={{ display: 'grid', gap: 10 }}><button className="primaryButton saveWeekButton" onClick={saveWeek}>{existingWeek ? `Update Week ${week}` : `Save Week ${week}`}</button><button className="secondaryButton" onClick={resetWeek}>Reset Week {week}</button></div></section>
 
     <section className="panel commissionerPanel"><div className="panelTitle"><h3>POWER RANKINGS</h3><span>{existingRankings ? `WEEK ${week} PUBLISHED` : `WEEK ${week}`}</span></div><div className="rankingEditor">{rankings.map((r, i) => <div className="rankingEditRow" key={i}><b>#{i + 1}</b><select value={r.team_id} onChange={e => updateRanking(i, 'team_id', e.target.value)}>{options}</select><input placeholder="Commissioner comment (optional)" value={r.commentary} onChange={e => updateRanking(i, 'commentary', e.target.value)} /></div>)}</div><div style={{ display: 'grid', gap: 10 }}><button className="primaryButton saveWeekButton" onClick={saveRankings}>{existingRankings ? 'Update Rankings' : 'Publish Rankings'}</button>{existingRankings && <button className="secondaryButton" onClick={clearRankings}>Clear Week {week} Rankings</button>}</div></section>
 
-    <section className="commissionerGrid"><div className="panel commissionerPanel"><div className="panelTitle"><h3>LEAGUE NEWS</h3><span>{editingNewsId ? 'EDITING' : 'PUBLISH'}</span></div><div className="commissionerForm"><label>Headline<input value={news.title} onChange={e => setNews({ ...news, title: e.target.value })} /></label><label>Story<textarea rows="5" value={news.body} onChange={e => setNews({ ...news, body: e.target.value })} /></label><button className="primaryButton" onClick={saveNews}>{editingNewsId ? 'Save Changes' : 'Publish News'}</button>{editingNewsId && <button className="secondaryButton" onClick={cancelNewsEdit}>Cancel Edit</button>}</div>{newsItems.length > 0 && <div style={{ marginTop: 18, display: 'grid', gap: 8 }}>{newsItems.map(item => <div key={item.id} style={{ borderTop: '1px solid #2a3138', paddingTop: 10 }}><strong style={{ display: 'block', marginBottom: 7 }}>{item.title}</strong><div style={{ display: 'flex', gap: 8 }}><button className="secondaryButton" onClick={() => editNews(item)}>Edit</button><button className="secondaryButton" onClick={() => deleteNews(item.id)}>Delete</button></div></div>)}</div>}</div>
-    <div className="panel commissionerPanel"><div className="panelTitle"><h3>DIRTY PLAYER OF THE WEEK</h3><span>WEEK {week}</span></div><div className="commissionerForm"><label>Team<select value={dirtyPlayer.team_id} onChange={e => setDirtyPlayer({ ...dirtyPlayer, team_id: e.target.value })}>{options}</select></label><label>Player<input value={dirtyPlayer.player_name} onChange={e => setDirtyPlayer({ ...dirtyPlayer, player_name: e.target.value })} /></label><label>Why they were dirty<textarea rows="3" value={dirtyPlayer.reason} onChange={e => setDirtyPlayer({ ...dirtyPlayer, reason: e.target.value })} /></label><button className="primaryButton" onClick={saveDirtyPlayer}>Save Dirty Player</button></div></div></section>
+    <section className="commissionerGrid"><div className="panel commissionerPanel"><div className="panelTitle"><h3>LEAGUE NEWS</h3><span>{editingNewsId ? 'EDITING' : 'PUBLISH'}</span></div><div className="commissionerForm"><label>Headline<input value={news.title} onChange={e => setNews({ ...news, title: e.target.value })} /></label><label>Story<textarea rows="5" value={news.body} onChange={e => setNews({ ...news, body: e.target.value })} /></label><button className="primaryButton" onClick={saveNews}>{editingNewsId ? 'Save Changes' : 'Publish News'}</button>{editingNewsId && <button className="secondaryButton" onClick={cancelNewsEdit}>Cancel Edit</button>}</div>{newsItems.length > 0 && <div style={{ marginTop: 18, display: 'grid', gap: 8 }}>{newsItems.map(item => <div key={item.id} style={{ borderTop: '1px solid #2a3138', paddingTop: 10 }}><strong style={{ display: 'block', marginBottom: 7 }}>{item.title}</strong><div style={{ display: 'flex', gap: 8 }}><button className="secondaryButton" onClick={() => editNews(item)}>Edit</button><button className="secondaryButton" onClick={() => deleteNews(item.id)}>Delete</button></div></div>)}</div>}</div><div className="panel commissionerPanel"><div className="panelTitle"><h3>DIRTY PLAYER OF THE WEEK</h3><span>WEEK {week}</span></div><div className="commissionerForm"><label>Team<select value={dirtyPlayer.team_id} onChange={e => setDirtyPlayer({ ...dirtyPlayer, team_id: e.target.value })}>{options}</select></label><label>Player<input value={dirtyPlayer.player_name} onChange={e => setDirtyPlayer({ ...dirtyPlayer, player_name: e.target.value })} /></label><label>Why they were dirty<textarea rows="3" value={dirtyPlayer.reason} onChange={e => setDirtyPlayer({ ...dirtyPlayer, reason: e.target.value })} /></label><button className="primaryButton" onClick={saveDirtyPlayer}>Save Dirty Player</button></div></div></section>
 
     <section className="panel commissionerPanel"><div className="panelTitle"><h3>CHAMPIONSHIP HISTORY</h3><span>TROPHY CASE</span></div><div className="commissionerForm"><label>Season<input inputMode="numeric" placeholder="2025" value={champion.season} onChange={e => setChampion({ ...champion, season: e.target.value })} /></label><label>Champion<select value={champion.team_id} onChange={e => setChampion({ ...champion, team_id: e.target.value })}>{options}</select></label><button className="primaryButton" onClick={saveChampion}>Save Champion</button></div></section>
 
