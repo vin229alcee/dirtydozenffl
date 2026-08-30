@@ -1,302 +1,90 @@
 /* Desktop-only homepage cleanup */
 @media (min-width: 821px) {
-  .homeGrid.pageWrap {
-    width: min(1280px, calc(100% - 48px));
-    margin: 0 auto;
-    padding: 28px 0 72px;
-    display: grid;
-    grid-template-columns: repeat(12, minmax(0, 1fr));
-    gap: 20px;
-    align-items: stretch;
-  }
-
-  .homeGrid > * { min-width: 0; }
-
-  /* Top broadcast package */
-  .topline {
-    min-height: 30px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    padding: 6px 20px;
-    border-bottom: 1px solid rgba(255,255,255,.07);
-    background: linear-gradient(90deg,#7d0918,#d01830 48%,#7d0918);
-    color: #fff;
-    font-size: 9px;
-    font-weight: 900;
-    letter-spacing: .18em;
-    text-transform: uppercase;
-  }
-
-  .homeGrid .homeHero {
-    grid-column: 1 / span 8;
-    min-height: 330px;
-    position: relative;
-    overflow: hidden;
-    padding: 42px 46px;
-    border: 1px solid #36434e;
-    border-top: 3px solid var(--red);
-    border-radius: 14px;
-    background:
-      radial-gradient(circle at 82% 38%,rgba(255,38,61,.18),transparent 24%),
-      radial-gradient(circle at 10% 100%,rgba(25,167,255,.09),transparent 32%),
-      linear-gradient(115deg,#111b23 0%,#0a1015 58%,#16090c 100%);
-    box-shadow: 0 22px 50px rgba(0,0,0,.35);
-  }
-
-  .homeGrid .homeHero:before {
-    content: "DIRTY DOZENS FANTASY FOOTBALL";
-    position: absolute;
-    top: 22px;
-    right: -66px;
-    transform: rotate(90deg);
-    color: rgba(255,255,255,.06);
-    font-family: Oswald,sans-serif;
-    font-size: 11px;
-    font-weight: 700;
-    letter-spacing: .18em;
-    white-space: nowrap;
-  }
-
-  .homeGrid .homeHero:after {
-    content: "";
-    position: absolute;
-    right: 92px;
-    top: 0;
-    bottom: 0;
-    width: 1px;
-    background: linear-gradient(transparent,rgba(255,255,255,.10),transparent);
-  }
-
-  .homeGrid .homeHero .heroCopy { position: relative; z-index: 2; max-width: 760px; }
-  .homeGrid .homeHero .eyebrow {
-    display: inline-flex;
-    align-items: center;
-    gap: 9px;
-    color: #d6dde2;
-    font-size: 10px;
-    font-weight: 900;
-    letter-spacing: .18em;
-  }
-  .homeGrid .homeHero .eyebrow:before {
-    content: "";
-    width: 24px;
-    height: 3px;
-    background: var(--red);
-    border-radius: 99px;
-  }
-
-  .homeGrid .homeHero h1 {
-    max-width: 760px;
-    margin: 14px 0 12px;
-    font-size: clamp(58px, 5.2vw, 82px);
-    line-height: .91;
-    letter-spacing: -.025em;
-  }
-  .homeGrid .homeHero h1 em { color: var(--red); text-shadow: 0 0 24px rgba(255,38,61,.22); }
-
-  .homeGrid .homeHero p {
-    max-width: 590px;
-    margin-bottom: 24px;
-    color: #a9b3bb;
-    font-size: 14px;
-    line-height: 1.65;
-  }
-
-  .homeGrid .homeHero .button {
-    display: inline-flex;
-    align-items: center;
-    min-height: 42px;
-    padding: 0 16px;
-    border-radius: 7px;
-    background: linear-gradient(135deg,#ff3048,#bf0d24);
-    box-shadow: 0 10px 24px rgba(255,38,61,.18);
-    font-size: 10px;
-    font-weight: 900;
-    letter-spacing: .08em;
-    text-transform: uppercase;
-  }
-
-  .homeGrid .homeHero .heroMark {
-    position: absolute;
-    right: 40px;
-    bottom: 12px;
-    z-index: 1;
-    font-family: Oswald,sans-serif;
-    font-size: 172px;
-    font-weight: 900;
-    line-height: .8;
-    color: rgba(255,255,255,.045);
-    text-shadow: none;
-  }
-
-  .homeGrid .championCard {
-    grid-column: 9 / -1;
-    min-height: 330px;
-    padding: 30px;
-    position: relative;
-    display: flex;
-    flex-direction: column;
-    justify-content: flex-end;
-    overflow: hidden;
-    border-top: 3px solid var(--gold) !important;
-    background:
-      radial-gradient(circle at 70% 10%,rgba(255,194,75,.18),transparent 35%),
-      linear-gradient(150deg,#171c20,#0b0f12 65%,#161109) !important;
-  }
-  .homeGrid .championCard:after {
-    content: "CHAMP";
-    position: absolute;
-    right: -6px;
-    top: 8px;
-    font-family: Oswald,sans-serif;
-    font-size: 74px;
-    font-weight: 900;
-    color: rgba(255,255,255,.035);
-    pointer-events: none;
-  }
-  .homeGrid .championCard .eyebrow {
-    color: var(--gold);
-    font-size: 10px;
-    font-weight: 900;
-    letter-spacing: .15em;
-  }
-  .homeGrid .championCard h2 {
-    margin: 14px 0 5px;
-    max-width: 95%;
-    font-size: 39px;
-    line-height: .98;
-  }
-  .homeGrid .championCard > strong { color: #d6dce1; font-size: 13px; }
-  .homeGrid .championCard .belt {
-    align-self: flex-start;
-    margin-top: 25px;
-    padding: 7px 11px;
-    border: 1px solid rgba(255,194,75,.55);
-    border-radius: 5px;
-    background: rgba(255,194,75,.08);
-    color: var(--gold);
-    font-family: Oswald,sans-serif;
-    font-size: 11px;
-    font-weight: 800;
-    letter-spacing: .12em;
-  }
-  .homeGrid .championCard > p {
-    margin: 8px 0 0;
-    color: #8e999f;
-    font-size: 9px;
-    font-weight: 800;
-    letter-spacing: .12em;
-  }
-
-  .homeGrid .gameOfWeek {
-    grid-column: 1 / span 5;
-    min-height: 310px;
-    padding: 25px 26px;
-    border-top: 3px solid var(--gold) !important;
-    box-shadow: 0 18px 40px rgba(0,0,0,.3);
-  }
-  .homeGrid .gameOfWeek .panelTitle { margin-bottom: 10px; }
-  .homeGrid .gameOfWeek .panelTitle h3 { font-size: 20px; }
-  .homeGrid .gameOfWeek .gotwTag {
-    display: inline-flex;
-    padding: 5px 8px;
-    margin: 4px 0 20px;
-    border: 1px solid rgba(255,194,75,.32);
-    border-radius: 999px;
-    background: rgba(255,194,75,.06);
-  }
-  .homeGrid .gameOfWeek .gotwTeams {
-    grid-template-columns: minmax(0,1fr) 38px minmax(0,1fr);
-    gap: 12px;
-  }
-  .homeGrid .gameOfWeek .gotwTeams strong { font-size: 23px; }
-  .homeGrid .gameOfWeek .gotwTeams b { font-size: 36px; }
-  .homeGrid .gameOfWeek .gotwReason { margin-top: 20px; }
-  .homeGrid .gameOfWeek .ghostButton {
-    display: inline-flex;
-    margin-top: 2px;
-    font-size: 10px;
-    font-weight: 900;
-    letter-spacing: .08em;
-    text-transform: uppercase;
-    color: #dce2e7;
-  }
-
-  .homeGrid .matchupPanel {
-    grid-column: 6 / -1;
-    min-height: 310px;
-    padding: 22px;
-  }
-  .homeGrid .matchupPanel .panelTitle h3 { font-size: 20px; }
-
-  .homeGrid .matchupPanel .matchupList {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 10px;
-  }
-
-  .homeGrid .homeMatchup {
-    margin: 0;
-    border: 1px solid #2c3943;
-    border-left-width: 2px !important;
-    border-radius: 9px;
-    overflow: hidden;
-    background: rgba(5, 9, 12, .58);
-  }
-
-  .homeGrid .homeMatchupTeam { padding: 10px 12px; gap: 12px; }
-  .homeGrid .homeMatchupTeam .homeTeamName { font-family: Oswald, sans-serif; font-size: 15px; line-height: 1.15; }
-  .homeGrid .homeMatchupTeam strong { font-size: 18px; }
-  .homeGrid .homeMatchupStatus { padding: 6px 12px; font-size: 9px; letter-spacing: .1em; }
-
-  .homeGrid .highScoreTracker,
-  .homeGrid .homeRecapTeaser { grid-column: 1 / -1; }
-  .homeGrid .highScoreTracker { padding: 20px 22px; }
-  .homeGrid .highScoreList { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 10px; }
-  .homeGrid .highScoreItem { min-width: 0; padding: 14px; display: flex; flex-direction: column; align-items: flex-start; gap: 7px; border: 1px solid #2f3b45; border-radius: 9px; background: rgba(5, 9, 12, .55); }
-  .homeGrid .highScoreItem:nth-child(n+6) { display: none; }
-  .homeGrid .highScoreItem > span { font-size: 9px; color: #8f9ba5; letter-spacing: .1em; }
-  .homeGrid .highScoreItem > strong { font-family: Oswald, sans-serif; font-size: 17px; line-height: 1.1; }
-  .homeGrid .highScoreItem > b { margin-top: auto; font-family: Oswald, sans-serif; font-size: 28px; color: var(--gold); }
-
-  .homeGrid .homeRecapTeaser { padding: 24px 26px; }
-  .homeGrid .homeRecapTeaser .recapGrid { grid-template-columns: repeat(2, minmax(0, 1fr)); max-width: 760px; }
-  .homeGrid .homeRecapTeaser .recapStat { padding: 16px 18px; }
-
-  .homeGrid .standingsPanel { grid-column: 1 / span 7; padding: 22px; }
-  .homeGrid .rankingsPanel { grid-column: 8 / -1; padding: 22px; }
-  .homeGrid .standingsPanel table { width: 100%; border-collapse: collapse; }
-  .homeGrid .standingsPanel th { padding: 9px 10px; text-align: left; font-size: 9px; letter-spacing: .1em; color: #88949e; border-bottom: 1px solid #34414c; }
-  .homeGrid .standingsPanel td { padding: 11px 10px; border-bottom: 1px solid rgba(255,255,255,.065); font-size: 12px; }
-  .homeGrid .standingsPanel tbody tr:last-child td { border-bottom: 0; }
-  .homeGrid .standingsPanel td:nth-child(1) { width: 34px; color: var(--red); font-family: Oswald, sans-serif; font-size: 16px; }
-  .homeGrid .standingsPanel td:nth-child(n+3), .homeGrid .standingsPanel th:nth-child(n+3) { text-align: right; }
-
-  .homeGrid .rankingsPanel .recordRow { min-height: 48px; padding: 11px 0; gap: 12px; border-bottom: 1px solid rgba(255,255,255,.075); }
-  .homeGrid .rankingsPanel .recordRow:last-child { border-bottom: 0; }
-  .homeGrid .rankingsPanel .homeTeamName { font-family: Oswald, sans-serif; font-size: 16px; }
-
-  .homeGrid .newsPanel { grid-column: 1 / span 7; padding: 22px; }
-  .homeGrid .recordsPanel { grid-column: 8 / -1; padding: 22px; }
-  .homeGrid .newsPanel article { display: grid; grid-template-columns: 42px minmax(0, 1fr); gap: 12px; padding: 14px 0; border-top: 1px solid rgba(255,255,255,.075); }
-  .homeGrid .newsPanel article:first-of-type { border-top: 0; }
-  .homeGrid .newsPanel h4 { margin: 0 0 5px; font-size: 16px; }
-  .homeGrid .newsPanel p { margin: 0; color: #96a1aa; font-size: 12px; line-height: 1.5; }
-  .homeGrid .newsIndex { font-family: Oswald, sans-serif; font-size: 22px; color: var(--red); }
-  .homeGrid .recordsPanel .recordRow { padding: 13px 0; border-bottom: 1px solid rgba(255,255,255,.075); }
-  .homeGrid .recordsPanel .recordRow:last-child { border-bottom: 0; }
-
-  .homeGrid .dirtyPlayer { grid-column: 1 / span 6; padding: 26px; }
-  .homeGrid .trashTalk { grid-column: 7 / -1; padding: 24px; }
-  .homeGrid .trashTalk blockquote { margin: 0; padding: 14px 0; border-top: 1px solid rgba(255,255,255,.075); color: #c9d0d6; font-size: 14px; }
-  .homeGrid .trashTalk blockquote:first-of-type { border-top: 0; }
-
-  .homeGrid .panelTitle { align-items: center; margin-bottom: 14px; }
-  .homeGrid .panelTitle > span { margin-left: auto; color: #8d99a3; font-size: 9px; font-weight: 800; letter-spacing: .1em; }
-  .homeGrid .panelTitle > a { flex: 0 0 auto; padding: 6px 9px; border: 1px solid #3a4853; border-radius: 999px; color: #cbd2d8; font-size: 9px; font-weight: 800; letter-spacing: .08em; }
-  .homeGrid .panelTitle > a:hover { border-color: #657681; color: #fff; }
-
-  .headerInner { max-width: 1280px; padding-inline: 24px; }
-  .nav { margin-left: auto; gap: 13px; font-size: 11px; }
+  .homeGrid.pageWrap { width:min(1280px,calc(100% - 48px)); margin:0 auto; padding:28px 0 72px; display:grid; grid-template-columns:repeat(12,minmax(0,1fr)); gap:20px; align-items:stretch; }
+  .homeGrid > * { min-width:0; }
+  .topline { min-height:30px; display:flex; align-items:center; justify-content:center; padding:6px 20px; border-bottom:1px solid rgba(255,255,255,.07); background:linear-gradient(90deg,#7d0918,#d01830 48%,#7d0918); color:#fff; font-size:9px; font-weight:900; letter-spacing:.18em; text-transform:uppercase; }
+  .homeGrid .homeHero { grid-column:1/span 8; min-height:330px; position:relative; overflow:hidden; padding:42px 46px; border:1px solid #36434e; border-top:3px solid var(--red); border-radius:14px; background:radial-gradient(circle at 82% 38%,rgba(255,38,61,.18),transparent 24%),radial-gradient(circle at 10% 100%,rgba(25,167,255,.09),transparent 32%),linear-gradient(115deg,#111b23 0%,#0a1015 58%,#16090c 100%); box-shadow:0 22px 50px rgba(0,0,0,.35); }
+  .homeGrid .homeHero:before { content:"DIRTY DOZENS FANTASY FOOTBALL"; position:absolute; top:22px; right:-66px; transform:rotate(90deg); color:rgba(255,255,255,.06); font-family:Oswald,sans-serif; font-size:11px; font-weight:700; letter-spacing:.18em; white-space:nowrap; }
+  .homeGrid .homeHero:after { content:""; position:absolute; right:92px; top:0; bottom:0; width:1px; background:linear-gradient(transparent,rgba(255,255,255,.10),transparent); }
+  .homeGrid .homeHero .heroCopy { position:relative; z-index:2; max-width:760px; }
+  .homeGrid .homeHero .eyebrow { display:inline-flex; align-items:center; gap:9px; color:#d6dde2; font-size:10px; font-weight:900; letter-spacing:.18em; }
+  .homeGrid .homeHero .eyebrow:before { content:""; width:24px; height:3px; background:var(--red); border-radius:99px; }
+  .homeGrid .homeHero h1 { max-width:760px; margin:14px 0 12px; font-size:clamp(58px,5.2vw,82px); line-height:.91; letter-spacing:-.025em; }
+  .homeGrid .homeHero h1 em { color:var(--red); text-shadow:0 0 24px rgba(255,38,61,.22); }
+  .homeGrid .homeHero p { max-width:590px; margin-bottom:24px; color:#a9b3bb; font-size:14px; line-height:1.65; }
+  .homeGrid .homeHero .button { display:inline-flex; align-items:center; min-height:42px; padding:0 16px; border-radius:7px; background:linear-gradient(135deg,#ff3048,#bf0d24); box-shadow:0 10px 24px rgba(255,38,61,.18); font-size:10px; font-weight:900; letter-spacing:.08em; text-transform:uppercase; }
+  .homeGrid .homeHero .heroMark { position:absolute; right:40px; bottom:12px; z-index:1; font-family:Oswald,sans-serif; font-size:172px; font-weight:900; line-height:.8; color:rgba(255,255,255,.045); text-shadow:none; }
+  .homeGrid .championCard { grid-column:9/-1; min-height:330px; padding:30px; position:relative; display:flex; flex-direction:column; justify-content:flex-end; overflow:hidden; border-top:3px solid var(--gold)!important; background:radial-gradient(circle at 70% 10%,rgba(255,194,75,.18),transparent 35%),linear-gradient(150deg,#171c20,#0b0f12 65%,#161109)!important; }
+  .homeGrid .championCard:after { content:"CHAMP"; position:absolute; right:-6px; top:8px; font-family:Oswald,sans-serif; font-size:74px; font-weight:900; color:rgba(255,255,255,.035); pointer-events:none; }
+  .homeGrid .championCard .eyebrow { color:var(--gold); font-size:10px; font-weight:900; letter-spacing:.15em; }
+  .homeGrid .championCard h2 { margin:14px 0 5px; max-width:95%; font-size:39px; line-height:.98; }
+  .homeGrid .championCard > strong { color:#d6dce1; font-size:13px; }
+  .homeGrid .championCard .belt { align-self:flex-start; margin-top:25px; padding:7px 11px; border:1px solid rgba(255,194,75,.55); border-radius:5px; background:rgba(255,194,75,.08); color:var(--gold); font-family:Oswald,sans-serif; font-size:11px; font-weight:800; letter-spacing:.12em; }
+  .homeGrid .championCard > p { margin:8px 0 0; color:#8e999f; font-size:9px; font-weight:800; letter-spacing:.12em; }
+  .homeGrid .gameOfWeek { grid-column:1/span 5; min-height:310px; padding:25px 26px; border-top:3px solid var(--gold)!important; box-shadow:0 18px 40px rgba(0,0,0,.3); }
+  .homeGrid .gameOfWeek .panelTitle { margin-bottom:10px; }
+  .homeGrid .gameOfWeek .panelTitle h3 { font-size:20px; }
+  .homeGrid .gameOfWeek .gotwTag { display:inline-flex; padding:5px 8px; margin:4px 0 20px; border:1px solid rgba(255,194,75,.32); border-radius:999px; background:rgba(255,194,75,.06); }
+  .homeGrid .gameOfWeek .gotwTeams { grid-template-columns:minmax(0,1fr) 38px minmax(0,1fr); gap:12px; }
+  .homeGrid .gameOfWeek .gotwTeams strong { font-size:23px; }
+  .homeGrid .gameOfWeek .gotwTeams b { font-size:36px; }
+  .homeGrid .gameOfWeek .gotwReason { margin-top:20px; }
+  .homeGrid .gameOfWeek .ghostButton { display:inline-flex; margin-top:2px; font-size:10px; font-weight:900; letter-spacing:.08em; text-transform:uppercase; color:#dce2e7; }
+  .homeGrid .matchupPanel { grid-column:6/-1; min-height:310px; padding:22px; }
+  .homeGrid .matchupPanel .panelTitle h3 { font-size:20px; }
+  .homeGrid .matchupPanel .matchupList { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px; }
+  .homeGrid .homeMatchup { margin:0; border:1px solid #2c3943; border-left-width:2px!important; border-radius:9px; overflow:hidden; background:rgba(5,9,12,.58); }
+  .homeGrid .homeMatchupTeam { padding:10px 12px; gap:12px; }
+  .homeGrid .homeMatchupTeam .homeTeamName { font-family:Oswald,sans-serif; font-size:15px; line-height:1.15; }
+  .homeGrid .homeMatchupTeam strong { font-size:18px; }
+  .homeGrid .homeMatchupStatus { padding:6px 12px; font-size:9px; letter-spacing:.1em; }
+  .homeGrid .highScoreTracker,.homeGrid .homeRecapTeaser,.homeGrid .homePickEmTeaser { grid-column:1/-1; }
+  .homeGrid .highScoreTracker { padding:20px 22px; }
+  .homeGrid .highScoreList { display:grid; grid-template-columns:repeat(5,minmax(0,1fr)); gap:10px; }
+  .homeGrid .highScoreItem { min-width:0; padding:14px; display:flex; flex-direction:column; align-items:flex-start; gap:7px; border:1px solid #2f3b45; border-radius:9px; background:rgba(5,9,12,.55); }
+  .homeGrid .highScoreItem:nth-child(n+6) { display:none; }
+  .homeGrid .highScoreItem > span { font-size:9px; color:#8f9ba5; letter-spacing:.1em; }
+  .homeGrid .highScoreItem > strong { font-family:Oswald,sans-serif; font-size:17px; line-height:1.1; }
+  .homeGrid .highScoreItem > b { margin-top:auto; font-family:Oswald,sans-serif; font-size:28px; color:var(--gold); }
+  .homeGrid .homeRecapTeaser { padding:24px 26px; }
+  .homeGrid .homeRecapTeaser .recapGrid { grid-template-columns:repeat(2,minmax(0,1fr)); max-width:760px; }
+  .homeGrid .homeRecapTeaser .recapStat { padding:16px 18px; }
+  .homeGrid .homePickEmTeaser { width:100%; padding:24px 26px; border-top:3px solid var(--blue); background:radial-gradient(circle at 88% 50%,rgba(25,167,255,.12),transparent 28%),linear-gradient(145deg,rgba(18,29,38,.98),rgba(7,12,17,.98)); }
+  .homeGrid .homePickEmTeaser .panelTitle { display:grid; grid-template-columns:minmax(0,1fr) auto auto; gap:14px; align-items:center; }
+  .homeGrid .homePickEmTeaser .panelTitle h3 { font-size:20px; }
+  .homeGrid .homePickEmTeaser > div:last-child { width:100%; grid-template-columns:minmax(0,1fr) auto!important; gap:32px!important; align-items:center!important; }
+  .homeGrid .homePickEmTeaser .eyebrow { display:block; font-size:10px; letter-spacing:.14em; color:#8fcfff; }
+  .homeGrid .homePickEmTeaser h2 { font-family:Oswald,sans-serif; font-size:30px; line-height:1.05; }
+  .homeGrid .homePickEmTeaser p { max-width:760px; font-size:13px; }
+  .homeGrid .homePickEmTeaser .button { display:inline-flex; align-items:center; justify-content:center; min-width:190px; min-height:44px; padding:0 18px; border-radius:7px; background:linear-gradient(135deg,#159eea,#0875bd); color:#fff; font-size:10px; font-weight:900; letter-spacing:.08em; text-transform:uppercase; white-space:nowrap; box-shadow:0 10px 24px rgba(25,167,255,.16); }
+  .homeGrid .standingsPanel { grid-column:1/span 7; padding:22px; }
+  .homeGrid .rankingsPanel { grid-column:8/-1; padding:22px; }
+  .homeGrid .standingsPanel table { width:100%; border-collapse:collapse; }
+  .homeGrid .standingsPanel th { padding:9px 10px; text-align:left; font-size:9px; letter-spacing:.1em; color:#88949e; border-bottom:1px solid #34414c; }
+  .homeGrid .standingsPanel td { padding:11px 10px; border-bottom:1px solid rgba(255,255,255,.065); font-size:12px; }
+  .homeGrid .standingsPanel tbody tr:last-child td { border-bottom:0; }
+  .homeGrid .standingsPanel td:nth-child(1) { width:34px; color:var(--red); font-family:Oswald,sans-serif; font-size:16px; }
+  .homeGrid .standingsPanel td:nth-child(n+3),.homeGrid .standingsPanel th:nth-child(n+3) { text-align:right; }
+  .homeGrid .rankingsPanel .recordRow { min-height:48px; padding:11px 0; gap:12px; border-bottom:1px solid rgba(255,255,255,.075); }
+  .homeGrid .rankingsPanel .recordRow:last-child { border-bottom:0; }
+  .homeGrid .rankingsPanel .homeTeamName { font-family:Oswald,sans-serif; font-size:16px; }
+  .homeGrid .newsPanel { grid-column:1/span 7; padding:22px; }
+  .homeGrid .recordsPanel { grid-column:8/-1; padding:22px; }
+  .homeGrid .newsPanel article { display:grid; grid-template-columns:42px minmax(0,1fr); gap:12px; padding:14px 0; border-top:1px solid rgba(255,255,255,.075); }
+  .homeGrid .newsPanel article:first-of-type { border-top:0; }
+  .homeGrid .newsPanel h4 { margin:0 0 5px; font-size:16px; }
+  .homeGrid .newsPanel p { margin:0; color:#96a1aa; font-size:12px; line-height:1.5; }
+  .homeGrid .newsIndex { font-family:Oswald,sans-serif; font-size:22px; color:var(--red); }
+  .homeGrid .recordsPanel .recordRow { padding:13px 0; border-bottom:1px solid rgba(255,255,255,.075); }
+  .homeGrid .recordsPanel .recordRow:last-child { border-bottom:0; }
+  .homeGrid .dirtyPlayer { grid-column:1/span 6; padding:26px; }
+  .homeGrid .trashTalk { grid-column:7/-1; padding:24px; }
+  .homeGrid .trashTalk blockquote { margin:0; padding:14px 0; border-top:1px solid rgba(255,255,255,.075); color:#c9d0d6; font-size:14px; }
+  .homeGrid .trashTalk blockquote:first-of-type { border-top:0; }
+  .homeGrid .panelTitle { align-items:center; margin-bottom:14px; }
+  .homeGrid .panelTitle > span { margin-left:auto; color:#8d99a3; font-size:9px; font-weight:800; letter-spacing:.1em; }
+  .homeGrid .panelTitle > a { flex:0 0 auto; padding:6px 9px; border:1px solid #3a4853; border-radius:999px; color:#cbd2d8; font-size:9px; font-weight:800; letter-spacing:.08em; }
+  .homeGrid .panelTitle > a:hover { border-color:#657681; color:#fff; }
+  .headerInner { max-width:1280px; padding-inline:24px; }
+  .nav { margin-left:auto; gap:13px; font-size:11px; }
 }
