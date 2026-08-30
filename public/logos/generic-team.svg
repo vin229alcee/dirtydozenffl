@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 180" role="img" aria-labelledby="title desc">
+  <title id="title">Generic fantasy football team logo</title>
+  <desc id="desc">A dark shield with a silver outline, football, and star.</desc>
+  <defs>
+    <linearGradient id="shield" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#22272d"/>
+      <stop offset="1" stop-color="#080b0e"/>
+    </linearGradient>
+  </defs>
+  <path d="M80 8 146 31v50c0 43-26 74-66 91C40 155 14 124 14 81V31L80 8Z" fill="url(#shield)" stroke="#d7dde3" stroke-width="7"/>
+  <path d="M80 20 134 39v42c0 35-20 61-54 77-34-16-54-42-54-77V39L80 20Z" fill="none" stroke="#59616b" stroke-width="2" opacity=".85"/>
+  <g transform="rotate(-32 80 78)">
+    <ellipse cx="80" cy="78" rx="24" ry="39" fill="#c8cdd2" stroke="#f3f5f7" stroke-width="2"/>
+    <path d="M80 44c-12 9-18 20-18 34s6 25 18 34" fill="none" stroke="#7d858d" stroke-width="2" opacity=".65"/>
+    <path d="M80 44c12 9 18 20 18 34s-6 25-18 34" fill="none" stroke="#7d858d" stroke-width="2" opacity=".65"/>
+    <path d="M68 78h24" stroke="#24292f" stroke-width="4" stroke-linecap="round"/>
+    <path d="M72 70v16M78 68v20M84 68v20M90 70v16" stroke="#24292f" stroke-width="3" stroke-linecap="round"/>
+  </g>
+  <path d="m80 132 4.2 8.5 9.4 1.4-6.8 6.6 1.6 9.3-8.4-4.4-8.4 4.4 1.6-9.3-6.8-6.6 9.4-1.4L80 132Z" fill="#f0f2f4"/>
+</svg>
