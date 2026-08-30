@@ -1,0 +1,5 @@
+.franchiseProfileVisuals:not(:has(.franchiseManagerPhoto img)) .franchiseManagerPhoto{display:none}
+.franchiseProfileVisuals:not(:has(.franchiseManagerPhoto img)) .franchiseMascotWrap{position:relative;right:auto;left:auto;bottom:auto;width:132px;height:132px}
+.managerProfileThumb:not(:has(img)){display:none}
+@media(max-width:820px){.franchiseProfileVisuals:not(:has(.franchiseManagerPhoto img)){min-height:82px;padding-left:0}.franchiseProfileVisuals:not(:has(.franchiseManagerPhoto img)) .franchiseMascotWrap{width:74px;height:74px}}
+@media(max-width:480px){.franchiseProfileVisuals:not(:has(.franchiseManagerPhoto img)){min-height:68px}.franchiseProfileVisuals:not(:has(.franchiseManagerPhoto img)) .franchiseMascotWrap{width:60px;height:60px}}
