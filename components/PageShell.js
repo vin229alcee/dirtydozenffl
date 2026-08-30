@@ -10,8 +10,8 @@ export default function PageShell({ title, kicker, children }) {
       <section className="pageHero compact">
         <div><span className="eyebrow">{kicker || league.season}</span><h1>{title}</h1></div>
       </section>
-      {children}
       <ProfileExtras />
+      {children}
     </main>
     <footer><strong>DIRTY DOZENS <span>FFL</span></strong><small>{league.subtagline}</small></footer>
   </>;
