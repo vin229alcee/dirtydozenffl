@@ -6,6 +6,7 @@ const links = [
   ["/matchups", "Matchups"],
   ["/standings", "Standings"],
   ["/power-rankings", "Power Rankings"],
+  ["/playoff-race", "Playoff Race"],
   ["/recap", "Recap"],
   ["/hall-of-fame", "Hall of Fame"],
   ["/rivalries", "Rivalries"],
