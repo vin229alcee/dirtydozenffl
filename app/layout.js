@@ -5,6 +5,7 @@ import "./desktop-home.css";
 import "./playoff-race.css";
 import "./awards.css";
 import "./nav-cleanup.css";
+import "./trash-talk.css";
 
 export const metadata = {
   title: "Dirty Dozens FFL",
