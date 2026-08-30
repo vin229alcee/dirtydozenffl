@@ -1,0 +1,2 @@
+.matchupScoreBlock{display:flex;flex-direction:column;align-items:flex-end;justify-content:center;min-width:76px}.matchupScoreBlock>b{font-family:Oswald;font-size:28px;line-height:1}.matchupScoreBlock>small{margin-top:6px;color:#d7e7f4!important;font-family:Oswald;font-size:11px!important;font-weight:700;letter-spacing:.06em}.publicTeamRow.winner .matchupScoreBlock>b{color:var(--gold)}
+@media(max-width:820px){.matchupScoreBlock{min-width:66px}.matchupScoreBlock>b{font-size:24px}.matchupScoreBlock>small{font-size:10px!important}}
