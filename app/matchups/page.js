@@ -8,6 +8,18 @@ const ESPN_LEAGUE_ID = "2145514194";
 const SEASON = 2026;
 const ESPN_BASE = `https://lm-api-reads.fantasy.espn.com/apis/v3/games/ffl/seasons/${SEASON}/segments/0/leagues/${ESPN_LEAGUE_ID}`;
 const normalize = (value) => String(value || "").toLowerCase().replace(/[^a-z0-9]/g, "");
+const BENCH_SLOTS = new Set([20, 21]);
+const SLOT_NAMES = {
+  0: "QB",
+  2: "RB",
+  4: "WR",
+  6: "TE",
+  16: "D/ST",
+  17: "K",
+  20: "BE",
+  21: "IR",
+  23: "FLEX",
+};
 
 function espnTeamName(team) {
   if (!team) return "Unknown Team";
@@ -18,6 +30,27 @@ function espnTeamName(team) {
 function projectedPoints(side) {
   const value = side?.totalProjectedPointsLive ?? side?.totalProjectedPoints;
   return value == null || !Number.isFinite(Number(value)) ? null : Number(value);
+}
+
+function rosterPlayers(side) {
+  const entries = side?.rosterForCurrentScoringPeriod?.entries || side?.rosterForMatchupPeriod?.entries || [];
+  return entries
+    .map((entry) => {
+      const pool = entry?.playerPoolEntry || {};
+      const player = pool?.player || {};
+      const slotId = Number(entry?.lineupSlotId);
+      const scoreValue = pool?.appliedStatTotal;
+      return {
+        id: Number(player?.id || entry?.playerId || pool?.id || 0),
+        name: player?.fullName || [player?.firstName, player?.lastName].filter(Boolean).join(" ") || "Player",
+        slotId,
+        slot: SLOT_NAMES[slotId] || (BENCH_SLOTS.has(slotId) ? "BE" : "FLEX"),
+        score: scoreValue == null || !Number.isFinite(Number(scoreValue)) ? null : Number(scoreValue),
+        starter: !BENCH_SLOTS.has(slotId),
+        injuryStatus: player?.injuryStatus || entry?.injuryStatus || "",
+      };
+    })
+    .sort((a, b) => Number(b.starter) - Number(a.starter) || a.slotId - b.slotId || a.name.localeCompare(b.name));
 }
 
 function espnHeaders() {
@@ -80,6 +113,8 @@ async function getEspnMatchups() {
           team2_score: awaySide?.totalPoints == null ? null : Number(awaySide.totalPoints),
           team1_projected: projectedPoints(homeSide),
           team2_projected: projectedPoints(awaySide),
+          team1_players: rosterPlayers(homeSide),
+          team2_players: rosterPlayers(awaySide),
           completed: Boolean(game.winner && game.winner !== "UNDECIDED"),
         };
       }),
@@ -94,6 +129,24 @@ async function getSavedMatchups() {
   const { data } = await supabase.from("matchups").select("*").eq("season", SEASON).order("week", { ascending: false }).order("id");
   const week = data?.length ? Math.max(...data.map((matchup) => Number(matchup.week))) : 1;
   return { matchups: (data || []).filter((matchup) => Number(matchup.week) === week), week };
+}
+
+function PlayerList({ teamName, players }) {
+  if (!players?.length) return <div className="playerBoxEmpty">Player scoring will appear when ESPN publishes the Week box score.</div>;
+  return (
+    <div className="playerTeamBox">
+      <div className="playerTeamBoxHead"><strong>{teamName}</strong><span>PTS</span></div>
+      <div className="playerRows">
+        {players.map((player, index) => (
+          <div className={`playerScoreRow ${player.starter ? "starter" : "bench"}`} key={`${player.id}-${player.slotId}-${index}`}>
+            <span className="playerSlot">{player.slot}</span>
+            <span className="playerName">{player.name}{player.injuryStatus && player.injuryStatus !== "ACTIVE" ? <small>{player.injuryStatus}</small> : null}</span>
+            <strong>{player.score == null ? "—" : player.score.toFixed(1)}</strong>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
 }
 
 export default async function Matchups() {
@@ -122,6 +175,8 @@ export default async function Matchups() {
       team2_name: byId[matchup.team2_id]?.name || "Team",
       team1_projected: null,
       team2_projected: null,
+      team1_players: [],
+      team2_players: [],
     }));
   }
 
@@ -160,6 +215,13 @@ export default async function Matchups() {
                     {projected2 != null ? <small>PROJ {projected2.toFixed(1)}</small> : null}
                   </div>
                 </div>
+                <details className="playerBoxscore">
+                  <summary>PLAYER BOX SCORE <span>View lineup scoring</span></summary>
+                  <div className="playerBoxscoreGrid">
+                    <PlayerList teamName={matchup.team1_name} players={matchup.team1_players} />
+                    <PlayerList teamName={matchup.team2_name} players={matchup.team2_players} />
+                  </div>
+                </details>
               </article>
             );
           })}
