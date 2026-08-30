@@ -7,6 +7,7 @@ import "./playoff-race.css";
 import "./awards.css";
 import "./nav-cleanup.css";
 import "./trash-talk.css";
+import "./matchup-projections.css";
 
 export const metadata = {
   title: "Dirty Dozens FFL",
