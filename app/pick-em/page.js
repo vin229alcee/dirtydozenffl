@@ -30,6 +30,10 @@ function isLocked(game) {
   return Date.now() >= new Date(game.kickoffAt).getTime();
 }
 
+function projectionLabel(value) {
+  return value == null || !Number.isFinite(Number(value)) ? null : `Proj ${Number(value).toFixed(1)}`;
+}
+
 export default function PickEmPage() {
   const [session, setSession] = useState(null);
   const [managerTeam, setManagerTeam] = useState(null);
@@ -233,7 +237,7 @@ export default function PickEmPage() {
           <div className={styles.heroCopy}>
             <span className="eyebrow">WEEK {schedule.currentWeek} · DIRTY DOZENS PICK 'EM</span>
             <h2>Pick every league matchup. Best record wins the week.</h2>
-            <p>Choose who you think will win each Dirty Dozens matchup before kickoff. Results score automatically from ESPN, and the season leaderboard keeps a running record.</p>
+            <p>Choose who you think will win each Dirty Dozens matchup before kickoff. ESPN projected scores are shown to help size up each matchup, and results score automatically.</p>
 
             {!session ? (
               <form className={styles.loginRow} onSubmit={signIn}>
@@ -268,6 +272,8 @@ export default function PickEmPage() {
                 const home = teamById[Number(game.home.id)] || { name: game.home.name, manager: "" };
                 const away = teamById[Number(game.away.id)] || { name: game.away.name, manager: "" };
                 const pick = myPicks[Number(game.id)];
+                const homeProjection = projectionLabel(game.home.projectedScore);
+                const awayProjection = projectionLabel(game.away.projectedScore);
                 return (
                   <article className={styles.game} key={game.id}>
                     <div className={styles.gameHead}>
@@ -278,13 +284,15 @@ export default function PickEmPage() {
                       <button type="button" disabled={!managerTeam || locked} onClick={() => choose(game, game.home.id)} className={`${styles.choice} ${Number(pick) === Number(game.home.id) ? styles.selected : ""}`}>
                         <span className={styles.teamName}>{home.name}</span>
                         <span className={styles.managerName}>{home.manager || "Manager"}</span>
-                        {game.completed ? <span className={styles.score}>{Number(game.home.score || 0).toFixed(1)}</span> : null}
+                        {homeProjection ? <span className={styles.projection}>{homeProjection}</span> : null}
+                        {game.completed ? <span className={styles.score}>Final {Number(game.home.score || 0).toFixed(1)}</span> : null}
                       </button>
                       <div className={styles.versus}>VS</div>
                       <button type="button" disabled={!managerTeam || locked} onClick={() => choose(game, game.away.id)} className={`${styles.choice} ${Number(pick) === Number(game.away.id) ? styles.selected : ""}`}>
                         <span className={styles.teamName}>{away.name}</span>
                         <span className={styles.managerName}>{away.manager || "Manager"}</span>
-                        {game.completed ? <span className={styles.score}>{Number(game.away.score || 0).toFixed(1)}</span> : null}
+                        {awayProjection ? <span className={styles.projection}>{awayProjection}</span> : null}
+                        {game.completed ? <span className={styles.score}>Final {Number(game.away.score || 0).toFixed(1)}</span> : null}
                       </button>
                     </div>
                   </article>
