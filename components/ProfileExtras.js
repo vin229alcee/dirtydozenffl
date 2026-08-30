@@ -42,16 +42,18 @@ export default function ProfileExtras(){
   const a=votes.filter(v=>v.choice==='a').length,b=votes.filter(v=>v.choice==='b').length,total=a+b;
 
   return <section className="profileExtrasWrap">
-    <div className="profileExtrasGrid">
+    <div className="profileExtrasGrid two">
       <article className="panel profileGradeCard"><span className="eyebrow">FRANCHISE GRADE</span><strong>{grade?.letter||'—'}</strong><b>{grade?`${grade.score}/100`:'Season data pending'}</b><small>Record · scoring · power rank</small></article>
       <article className="panel"><div className="panelTitle"><h3>LEAGUE REPUTATION</h3><span>THIS WEEK</span></div><div className="reactionButtons"><button onClick={()=>react('respect')}>👍 RESPECT <b>{respect}</b></button><button onClick={()=>react('disrespect')}>👎 DISRESPECT <b>{disrespect}</b></button></div></article>
-      <article className="panel profileVisits"><span className="eyebrow">PROFILE VISITS</span><strong>👀 {visits}</strong><small>Franchise scouting reports opened</small></article>
     </div>
     <div className="profileExtrasGrid two">
       <article className="panel rosterSpotlight"><div className="panelTitle"><h3>⭐ FRANCHISE STAR</h3><span>ROSTER SPOTLIGHT</span></div>{roster?.star?<><strong>{roster.star.name}</strong><p>{roster.star.position}{roster.star.proTeam?` · ${roster.star.proTeam}`:''}</p><b>{roster.star.points?.toFixed?.(1)??roster.star.points} fantasy pts</b></>:<div className="emptyPanel">Star player will appear when ESPN roster stats are available.</div>}</article>
       <article className="panel rosterSpotlight"><div className="panelTitle"><h3>📉 MOST UNDERPERFORMING</h3><span>VS PROJECTION</span></div>{roster?.underperformer?<><strong>{roster.underperformer.name}</strong><p>{roster.underperformer.position}{roster.underperformer.proTeam?` · ${roster.underperformer.proTeam}`:''}</p><b>{roster.underperformer.delta.toFixed(1)} vs projection</b></>:<div className="emptyPanel">Underperformance data will appear once projections and results are available.</div>}</article>
     </div>
-    {poll&&<article className="panel managerPollCard"><div className="panelTitle"><h3>MANAGER POLL</h3><span>{total} VOTES</span></div><h2>{poll.question}</h2><div className="pollButtons"><button onClick={()=>vote('a')}>{poll.option_a}<b>{total?Math.round(a/total*100):0}%</b></button><button onClick={()=>vote('b')}>{poll.option_b}<b>{total?Math.round(b/total*100):0}%</b></button></div></article>}
+    <div className="profileExtrasGrid two profileExtrasSecondary">
+      <article className="panel profileVisits"><span className="eyebrow">PROFILE VISITS</span><strong>👀 {visits}</strong><small>Franchise scouting reports opened</small></article>
+      {poll?<article className="panel managerPollCard"><div className="panelTitle"><h3>MANAGER POLL</h3><span>{total} VOTES</span></div><h2>{poll.question}</h2><div className="pollButtons"><button onClick={()=>vote('a')}>{poll.option_a}<b>{total?Math.round(a/total*100):0}%</b></button><button onClick={()=>vote('b')}>{poll.option_b}<b>{total?Math.round(b/total*100):0}%</b></button></div></article>:<article className="panel profileVisits"><span className="eyebrow">MANAGER POLL</span><strong>🗳️</strong><small>No active poll right now</small></article>}
+    </div>
     {status&&<p className="profileExtrasStatus">{status}</p>}
   </section>
 }
