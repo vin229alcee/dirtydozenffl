@@ -8,6 +8,7 @@ const links = [
   ["/power-rankings", "Power Rankings"],
   ["/recap", "Recap"],
   ["/hall-of-fame", "Hall of Fame"],
+  ["/rivalries", "Rivalries"],
   ["/analytics", "Analytics"],
   ["/history", "History"],
   ["/records", "Records"],
