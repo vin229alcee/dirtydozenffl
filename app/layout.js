@@ -11,6 +11,7 @@ import "./matchup-projections.css";
 import "./team-profile.css";
 import "./profile-placeholder-cleanup.css";
 import "./profile-extras.css";
+import "./ux-system.css";
 
 export const metadata = {
   title: "Dirty Dozens FFL",
@@ -28,4 +29,4 @@ export default function RootLayout({ children }) {
   );
 }
 
-// Deployment refresh: latest navigation and profile UI updates.
+// Deployment refresh: unified UX design system.
