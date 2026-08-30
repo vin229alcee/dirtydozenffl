@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
+import { track } from '@vercel/analytics';
 import PageShell from '../../components/PageShell';
 import { getSupabase } from '../../lib/supabase';
 
@@ -120,6 +121,11 @@ export default function TrashTalkPage(){
       if(mediaPath)await supabase.storage.from('trash-talk').remove([mediaPath]);
       setStatus(error.message);setPosting(false);return;
     }
+    track('Trash Talk Posted', {
+      postType: text && file ? 'text_and_meme' : file ? 'meme' : 'text',
+      hasMeme: Boolean(file),
+      textLength: text.length,
+    });
     setBody('');setFile(null);setPosting(false);await loadPosts();
   }
 
