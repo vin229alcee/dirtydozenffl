@@ -6,11 +6,11 @@ const primaryLinks = [
   ["/matchups", "Matchups"],
   ["/standings", "Standings"],
   ["/power-rankings", "Power Rankings"],
+  ["/pick-em", "Weekly Pick 'Em"],
 ];
 
 const moreLinks = [
   ["/manager", "Manager HQ"],
-  ["/pick-em", "Weekly Pick 'Em"],
   ["/trash-talk", "Trash Talk"],
   ["/playoff-race", "Playoff Race"],
   ["/recap", "Recap"],
