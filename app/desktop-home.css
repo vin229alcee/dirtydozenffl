@@ -1,0 +1,251 @@
+/* Desktop-only homepage cleanup */
+@media (min-width: 821px) {
+  .homeGrid.pageWrap {
+    width: min(1280px, calc(100% - 48px));
+    margin: 0 auto;
+    padding: 30px 0 72px;
+    display: grid;
+    grid-template-columns: repeat(12, minmax(0, 1fr));
+    gap: 20px;
+    align-items: stretch;
+  }
+
+  .homeGrid > * { min-width: 0; }
+
+  .homeGrid .homeHero {
+    grid-column: 1 / span 8;
+    min-height: 300px;
+    padding: 38px 42px;
+    border-radius: 14px;
+  }
+
+  .homeGrid .homeHero h1 {
+    max-width: 760px;
+    margin: 8px 0 10px;
+    font-size: clamp(54px, 5vw, 78px);
+    line-height: .95;
+  }
+
+  .homeGrid .homeHero p {
+    max-width: 620px;
+    font-size: 15px;
+    line-height: 1.6;
+  }
+
+  .homeGrid .championCard {
+    grid-column: 9 / -1;
+    min-height: 300px;
+    padding: 30px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+  }
+
+  .homeGrid .championCard h2 {
+    margin: 10px 0 4px;
+    font-size: 34px;
+    line-height: 1.02;
+  }
+
+  .homeGrid .championCard .belt { margin-top: 22px; }
+
+  .homeGrid .gameOfWeek {
+    grid-column: 1 / span 4;
+    padding: 24px;
+  }
+
+  .homeGrid .matchupPanel {
+    grid-column: 5 / -1;
+    padding: 22px;
+  }
+
+  .homeGrid .matchupPanel .matchupList {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+  }
+
+  .homeGrid .homeMatchup {
+    margin: 0;
+    border: 1px solid #2c3943;
+    border-left-width: 2px !important;
+    border-radius: 9px;
+    overflow: hidden;
+    background: rgba(5, 9, 12, .58);
+  }
+
+  .homeGrid .homeMatchupTeam {
+    padding: 10px 12px;
+    gap: 12px;
+  }
+
+  .homeGrid .homeMatchupTeam .homeTeamName {
+    font-family: Oswald, sans-serif;
+    font-size: 15px;
+    line-height: 1.15;
+  }
+
+  .homeGrid .homeMatchupTeam strong {
+    font-size: 18px;
+  }
+
+  .homeGrid .homeMatchupStatus {
+    padding: 6px 12px;
+    font-size: 9px;
+    letter-spacing: .1em;
+  }
+
+  .homeGrid .highScoreTracker,
+  .homeGrid .homeRecapTeaser {
+    grid-column: 1 / -1;
+  }
+
+  .homeGrid .highScoreTracker { padding: 20px 22px; }
+
+  .homeGrid .highScoreList {
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: 10px;
+  }
+
+  .homeGrid .highScoreItem {
+    min-width: 0;
+    padding: 14px;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 7px;
+    border: 1px solid #2f3b45;
+    border-radius: 9px;
+    background: rgba(5, 9, 12, .55);
+  }
+
+  .homeGrid .highScoreItem:nth-child(n+6) { display: none; }
+  .homeGrid .highScoreItem > span { font-size: 9px; color: #8f9ba5; letter-spacing: .1em; }
+  .homeGrid .highScoreItem > strong { font-family: Oswald, sans-serif; font-size: 17px; line-height: 1.1; }
+  .homeGrid .highScoreItem > b { margin-top: auto; font-family: Oswald, sans-serif; font-size: 28px; color: var(--gold); }
+
+  .homeGrid .homeRecapTeaser { padding: 24px 26px; }
+  .homeGrid .homeRecapTeaser .recapGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    max-width: 760px;
+  }
+  .homeGrid .homeRecapTeaser .recapStat { padding: 16px 18px; }
+
+  .homeGrid .standingsPanel {
+    grid-column: 1 / span 7;
+    padding: 22px;
+  }
+
+  .homeGrid .rankingsPanel {
+    grid-column: 8 / -1;
+    padding: 22px;
+  }
+
+  .homeGrid .standingsPanel table { width: 100%; border-collapse: collapse; }
+  .homeGrid .standingsPanel th {
+    padding: 9px 10px;
+    text-align: left;
+    font-size: 9px;
+    letter-spacing: .1em;
+    color: #88949e;
+    border-bottom: 1px solid #34414c;
+  }
+  .homeGrid .standingsPanel td {
+    padding: 11px 10px;
+    border-bottom: 1px solid rgba(255,255,255,.065);
+    font-size: 12px;
+  }
+  .homeGrid .standingsPanel tbody tr:last-child td { border-bottom: 0; }
+  .homeGrid .standingsPanel td:nth-child(1) { width: 34px; color: var(--red); font-family: Oswald, sans-serif; font-size: 16px; }
+  .homeGrid .standingsPanel td:nth-child(n+3),
+  .homeGrid .standingsPanel th:nth-child(n+3) { text-align: right; }
+
+  .homeGrid .rankingsPanel .recordRow {
+    min-height: 48px;
+    padding: 11px 0;
+    gap: 12px;
+    border-bottom: 1px solid rgba(255,255,255,.075);
+  }
+  .homeGrid .rankingsPanel .recordRow:last-child { border-bottom: 0; }
+  .homeGrid .rankingsPanel .homeTeamName { font-family: Oswald, sans-serif; font-size: 16px; }
+
+  .homeGrid .newsPanel {
+    grid-column: 1 / span 7;
+    padding: 22px;
+  }
+
+  .homeGrid .recordsPanel {
+    grid-column: 8 / -1;
+    padding: 22px;
+  }
+
+  .homeGrid .newsPanel article {
+    display: grid;
+    grid-template-columns: 42px minmax(0, 1fr);
+    gap: 12px;
+    padding: 14px 0;
+    border-top: 1px solid rgba(255,255,255,.075);
+  }
+  .homeGrid .newsPanel article:first-of-type { border-top: 0; }
+  .homeGrid .newsPanel h4 { margin: 0 0 5px; font-size: 16px; }
+  .homeGrid .newsPanel p { margin: 0; color: #96a1aa; font-size: 12px; line-height: 1.5; }
+  .homeGrid .newsIndex { font-family: Oswald, sans-serif; font-size: 22px; color: var(--red); }
+
+  .homeGrid .recordsPanel .recordRow {
+    padding: 13px 0;
+    border-bottom: 1px solid rgba(255,255,255,.075);
+  }
+  .homeGrid .recordsPanel .recordRow:last-child { border-bottom: 0; }
+
+  .homeGrid .dirtyPlayer { grid-column: 1 / span 6; padding: 26px; }
+  .homeGrid .trashTalk { grid-column: 7 / -1; padding: 24px; }
+  .homeGrid .trashTalk blockquote {
+    margin: 0;
+    padding: 14px 0;
+    border-top: 1px solid rgba(255,255,255,.075);
+    color: #c9d0d6;
+    font-size: 14px;
+  }
+  .homeGrid .trashTalk blockquote:first-of-type { border-top: 0; }
+
+  .homeGrid .panelTitle {
+    align-items: center;
+    margin-bottom: 14px;
+  }
+
+  .homeGrid .panelTitle > span {
+    margin-left: auto;
+    color: #8d99a3;
+    font-size: 9px;
+    font-weight: 800;
+    letter-spacing: .1em;
+  }
+
+  .homeGrid .panelTitle > a {
+    flex: 0 0 auto;
+    padding: 6px 9px;
+    border: 1px solid #3a4853;
+    border-radius: 999px;
+    color: #cbd2d8;
+    font-size: 9px;
+    font-weight: 800;
+    letter-spacing: .08em;
+  }
+
+  .homeGrid .panelTitle > a:hover {
+    border-color: #657681;
+    color: #fff;
+  }
+
+  .headerInner {
+    max-width: 1280px;
+    padding-inline: 24px;
+  }
+
+  .nav {
+    margin-left: auto;
+    gap: 13px;
+    font-size: 11px;
+  }
+}
