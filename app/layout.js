@@ -2,6 +2,7 @@ import "./globals.css";
 import "./mobile.css";
 import "./mascots.css";
 import "./desktop-home.css";
+import "./playoff-race.css";
 
 export const metadata = {
   title: "Dirty Dozens FFL",
