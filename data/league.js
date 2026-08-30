@@ -1,7 +1,7 @@
 export const league = {
   name: "Dirty Dozens FFL",
   tagline: "12 Teams. 1 Champion. No Mercy.",
-  subtagline: "Trash talk is our love language.",
+  subtagline: "Bad beats. Big mouths. One champion.",
   season: 2026,
   platform: "ESPN",
   founded: "20XX",
