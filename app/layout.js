@@ -1,6 +1,7 @@
 import "./globals.css";
 import "./mobile.css";
 import "./mascots.css";
+import "./desktop-home.css";
 
 export const metadata = {
   title: "Dirty Dozens FFL",
