@@ -11,6 +11,7 @@ const primaryLinks = [
 
 const moreLinks = [
   ["/manager", "Manager HQ"],
+  ["/manager/profile", "Edit Profile"],
   ["/trash-talk", "Trash Talk"],
   ["/playoff-race", "Playoff Race"],
   ["/recap", "Recap"],
