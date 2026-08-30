@@ -26,3 +26,5 @@ export default function RootLayout({ children }) {
     </html>
   );
 }
+
+// Deployment refresh: latest navigation and profile UI updates.
