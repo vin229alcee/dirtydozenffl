@@ -9,6 +9,7 @@ const primaryLinks = [
   ["/pick-em", "Weekly Pick 'Em"],
 ];
 
+// Profile editing now lives inside Manager HQ, so it is intentionally not a separate nav item.
 const moreLinks = [
   ["/manager", "Manager HQ"],
   ["/trash-talk", "Trash Talk"],
