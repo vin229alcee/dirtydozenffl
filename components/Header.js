@@ -13,6 +13,7 @@ const primaryLinks = [
 // Profile editing now lives inside Manager HQ, so it is intentionally not a separate nav item.
 const moreLinks = [
   ["/manager", "Manager HQ"],
+  ["/commissioner/challenges", "Challenge HQ"],
   ["/trash-talk", "Trash Talk"],
   ["/playoff-race", "Playoff Race"],
   ["/recap", "Recap"],
