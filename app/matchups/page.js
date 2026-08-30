@@ -1,108 +1,16 @@
+import Image from "next/image";
 import { createClient } from "@supabase/supabase-js";
 import PageShell from "../../components/PageShell";
+import { mascotForTeam } from "../../lib/teamMascots";
 
 export const dynamic = "force-dynamic";
+const ESPN_LEAGUE_ID="2145514194",SEASON=2026;
+const normalize=v=>String(v||"").toLowerCase().replace(/[^a-z0-9]/g,"");
+function espnTeamName(t){if(!t)return"Unknown Team";if(t.name)return t.name;return[t.location,t.nickname].filter(Boolean).join(" ").trim()||t.abbrev||`ESPN Team ${t.id}`;}
+async function getTeams(){const u=process.env.NEXT_PUBLIC_SUPABASE_URL,k=process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;if(!u||!k)return[];const s=createClient(u,k,{auth:{persistSession:false,autoRefreshToken:false}});const{data}=await s.from("teams").select("id,name,manager,short_name,logo").order("id");return data||[];}
+async function getEspnMatchups(){const u=new URL(`https://lm-api-reads.fantasy.espn.com/apis/v3/games/ffl/seasons/${SEASON}/segments/0/leagues/${ESPN_LEAGUE_ID}`);u.searchParams.append("view","mTeam");u.searchParams.append("view","mMatchupScore");const h={accept:"application/json, text/plain, */*","user-agent":"DirtyDozensFFL/1.0"};if(process.env.ESPN_S2&&process.env.ESPN_SWID)h.cookie=`espn_s2=${process.env.ESPN_S2}; SWID=${process.env.ESPN_SWID}`;const r=await fetch(u,{headers:h,cache:"no-store"});if(!r.ok)throw new Error(`ESPN returned ${r.status}`);const d=await r.json(),week=Number(d?.status?.currentMatchupPeriod||1),byId=new Map((d?.teams||[]).map(t=>[Number(t.id),t]));return{week,matchups:(d?.schedule||[]).filter(g=>Number(g.matchupPeriodId)===week&&g.home&&g.away).map(g=>({id:`espn-${g.id}`,team1_name:espnTeamName(byId.get(Number(g.home.teamId))),team2_name:espnTeamName(byId.get(Number(g.away.teamId))),team1_score:g.home.totalPoints==null?null:Number(g.home.totalPoints),team2_score:g.away.totalPoints==null?null:Number(g.away.totalPoints),completed:Boolean(g.winner&&g.winner!=="UNDECIDED")}))};}
+async function getSavedMatchups(){const u=process.env.NEXT_PUBLIC_SUPABASE_URL,k=process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;if(!u||!k)return{matchups:[],week:1};const s=createClient(u,k,{auth:{persistSession:false,autoRefreshToken:false}}),{data}=await s.from("matchups").select("*").eq("season",SEASON).order("week",{ascending:false}).order("id"),week=data?.length?Math.max(...data.map(m=>Number(m.week))):1;return{matchups:(data||[]).filter(m=>Number(m.week)===week),week};}
 
-const ESPN_LEAGUE_ID = "2145514194";
-const SEASON = 2026;
-const normalize = (value) => String(value || "").toLowerCase().replace(/[^a-z0-9]/g, "");
-
-function espnTeamName(team) {
-  if (!team) return "Unknown Team";
-  if (team.name) return team.name;
-  return [team.location, team.nickname].filter(Boolean).join(" ").trim() || team.abbrev || `ESPN Team ${team.id}`;
-}
-
-async function getTeams() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const key = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
-  if (!url || !key) return [];
-  const supabase = createClient(url, key, { auth: { persistSession: false, autoRefreshToken: false } });
-  const { data } = await supabase.from("teams").select("id,name,manager,short_name,logo").order("id");
-  return data || [];
-}
-
-async function getEspnMatchups() {
-  const url = new URL(`https://lm-api-reads.fantasy.espn.com/apis/v3/games/ffl/seasons/${SEASON}/segments/0/leagues/${ESPN_LEAGUE_ID}`);
-  url.searchParams.append("view", "mTeam");
-  url.searchParams.append("view", "mMatchupScore");
-
-  const headers = {
-    accept: "application/json, text/plain, */*",
-    "user-agent": "DirtyDozensFFL/1.0",
-  };
-  if (process.env.ESPN_S2 && process.env.ESPN_SWID) {
-    headers.cookie = `espn_s2=${process.env.ESPN_S2}; SWID=${process.env.ESPN_SWID}`;
-  }
-
-  const response = await fetch(url, { headers, cache: "no-store" });
-  if (!response.ok) throw new Error(`ESPN returned ${response.status}`);
-  const data = await response.json();
-  const week = Number(data?.status?.currentMatchupPeriod || 1);
-  const teamById = new Map((data?.teams || []).map((team) => [Number(team.id), team]));
-  const games = (data?.schedule || []).filter((game) => Number(game.matchupPeriodId) === week && game.home && game.away);
-
-  return {
-    week,
-    matchups: games.map((game) => ({
-      id: `espn-${game.id}`,
-      team1_name: espnTeamName(teamById.get(Number(game.home.teamId))),
-      team2_name: espnTeamName(teamById.get(Number(game.away.teamId))),
-      team1_score: game.home.totalPoints == null ? null : Number(game.home.totalPoints),
-      team2_score: game.away.totalPoints == null ? null : Number(game.away.totalPoints),
-      completed: Boolean(game.winner && game.winner !== "UNDECIDED"),
-    })),
-  };
-}
-
-async function getSavedMatchups() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const key = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
-  if (!url || !key) return { matchups: [], week: 1 };
-  const supabase = createClient(url, key, { auth: { persistSession: false, autoRefreshToken: false } });
-  const { data: matchups } = await supabase.from("matchups").select("*").eq("season", SEASON).order("week", { ascending: false }).order("id");
-  const latestWeek = matchups?.length ? Math.max(...matchups.map((m) => Number(m.week))) : 1;
-  return { matchups: (matchups || []).filter((m) => Number(m.week) === latestWeek), week: latestWeek };
-}
-
-export default async function Matchups() {
-  const teams = await getTeams();
-  const localByName = Object.fromEntries(teams.map((team) => [normalize(team.name), team]));
-  const localById = Object.fromEntries(teams.map((team) => [team.id, team]));
-
-  let source = "ESPN LIVE";
-  let week = 1;
-  let matchups = [];
-
-  try {
-    const espn = await getEspnMatchups();
-    week = espn.week;
-    matchups = espn.matchups;
-  } catch {
-    const saved = await getSavedMatchups();
-    week = saved.week;
-    source = "SAVED RESULTS";
-    matchups = saved.matchups.map((m) => ({
-      ...m,
-      team1_name: localById[m.team1_id]?.name || "Team",
-      team2_name: localById[m.team2_id]?.name || "Team",
-    }));
-  }
-
-  return <PageShell title="MATCHUPS" kicker="2026 SEASON">
-    {matchups.length ? <>
-      <div className="weekSummary"><div><span>WEEK</span><strong>{week}</strong></div><b>{source}</b></div>
-      <div className="matchupGrid publicMatchupGrid">{matchups.map((m) => {
-        const home = localByName[normalize(m.team1_name)];
-        const away = localByName[normalize(m.team2_name)];
-        const s1 = m.team1_score == null ? null : Number(m.team1_score);
-        const s2 = m.team2_score == null ? null : Number(m.team2_score);
-        return <article className="panel publicMatchupCard" key={m.id}>
-          <div className={`publicTeamRow ${s1 != null && s2 != null && s1 > s2 ? "winner" : ""}`}><div><strong>{m.team1_name}</strong><small>{home?.manager || ""}</small></div><b>{s1 == null ? "—" : s1.toFixed(1)}</b></div>
-          <div className="matchupStatus">{m.completed ? "FINAL" : "LIVE / SCHEDULED"}</div>
-          <div className={`publicTeamRow ${s1 != null && s2 != null && s2 > s1 ? "winner" : ""}`}><div><strong>{m.team2_name}</strong><small>{away?.manager || ""}</small></div><b>{s2 == null ? "—" : s2.toFixed(1)}</b></div>
-        </article>;
-      })}</div>
-    </> : <section className="panel emptyPage"><h2>WEEK {week} SCHEDULE PENDING</h2><p>The ESPN schedule will appear here automatically as soon as it is available.</p></section>}
-  </PageShell>;
+export default async function Matchups(){const teams=await getTeams(),byName=Object.fromEntries(teams.map(t=>[normalize(t.name),t])),byId=Object.fromEntries(teams.map(t=>[t.id,t]));let source="ESPN LIVE",week=1,matchups=[];try{const e=await getEspnMatchups();week=e.week;matchups=e.matchups;}catch{const s=await getSavedMatchups();week=s.week;source="SAVED RESULTS";matchups=s.matchups.map(m=>({...m,team1_name:byId[m.team1_id]?.name||"Team",team2_name:byId[m.team2_id]?.name||"Team"}));}
+return <PageShell title="MATCHUPS" kicker="2026 SEASON">{matchups.length?<><div className="weekSummary"><div><span>WEEK</span><strong>{week}</strong></div><b>{source}</b></div><div className="matchupGrid publicMatchupGrid">{matchups.map(m=>{const h=byName[normalize(m.team1_name)],a=byName[normalize(m.team2_name)],s1=m.team1_score==null?null:Number(m.team1_score),s2=m.team2_score==null?null:Number(m.team2_score);return <article className="panel publicMatchupCard mascotMatchup" key={m.id}><div className={`publicTeamRow ${s1!=null&&s2!=null&&s1>s2?"winner":""}`}><div className="matchupIdentity"><div className="miniMascot"><Image src={mascotForTeam(m.team1_name,h?.logo||"")} alt="" width={70} height={70}/></div><div><strong>{m.team1_name}</strong><small>{h?.manager||""}</small></div></div><b>{s1==null?"—":s1.toFixed(1)}</b></div><div className="matchupStatus">{m.completed?"FINAL":"LIVE / SCHEDULED"}</div><div className={`publicTeamRow ${s1!=null&&s2!=null&&s2>s1?"winner":""}`}><div className="matchupIdentity"><div className="miniMascot"><Image src={mascotForTeam(m.team2_name,a?.logo||"")} alt="" width={70} height={70}/></div><div><strong>{m.team2_name}</strong><small>{a?.manager||""}</small></div></div><b>{s2==null?"—":s2.toFixed(1)}</b></div></article>})}</div></>:<section className="panel emptyPage"><h2>WEEK {week} SCHEDULE PENDING</h2><p>The ESPN schedule will appear here automatically as soon as it is available.</p></section>}</PageShell>;
 }
