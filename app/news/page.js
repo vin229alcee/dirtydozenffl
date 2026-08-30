@@ -30,12 +30,7 @@ export default function News() {
         setLoading(false);
         return;
       }
-
-      const { data, error } = await supabase
-        .from('league_news')
-        .select('id,title,body,published_at')
-        .order('published_at', { ascending: false });
-
+      const { data, error } = await supabase.from('league_news').select('id,title,body,published_at').order('published_at', { ascending: false });
       if (error) setError(error.message);
       else setStories(data || []);
       setLoading(false);
@@ -60,37 +55,7 @@ export default function News() {
 
   return (
     <PageShell title="NEWS" kicker="DIRTY DOZENS + AROUND THE NFL">
-      <section className="panel" style={{ marginBottom: 20 }}>
-        <div className="panelTitle"><h3>NFL WIRE</h3><span>AUTO REFRESH</span></div>
-        <p style={{ color: '#aab2bb', lineHeight: 1.6, marginTop: 0 }}>
-          The biggest NFL headlines in one place so the league can keep up without leaving Dirty Dozens. Headlines refresh automatically throughout the day.
-        </p>
-      </section>
-
       <section style={{ marginBottom: 28 }}>
-        <div className="panelTitle" style={{ marginBottom: 12 }}><h3>AROUND THE NFL</h3><span>PROVIDED BY ESPN</span></div>
-        <div className="newsGrid">
-          {nflLoading && <div className="panel emptyPanel">Loading NFL headlines…</div>}
-          {!nflLoading && nflError && <div className="panel emptyPanel">{nflError}</div>}
-          {!nflLoading && !nflError && nflStories.length === 0 && <div className="panel emptyPanel">No NFL headlines are available right now.</div>}
-          {!nflLoading && !nflError && nflStories.map((story, index) => (
-            <a
-              className="panel storyCard"
-              key={story.id}
-              href={story.url}
-              target="_blank"
-              rel="noopener noreferrer"
-              style={{ display: 'block', textDecoration: 'none' }}
-            >
-              <span className="eyebrow">{index === 0 ? 'TOP STORY · ESPN' : 'NFL · ESPN'}</span>
-              <h2>{story.title}</h2>
-              <small>{formatDate(story.publishedAt)} · Read full story on ESPN →</small>
-            </a>
-          ))}
-        </div>
-      </section>
-
-      <section>
         <div className="panelTitle" style={{ marginBottom: 12 }}><h3>DIRTY DOZENS NEWS</h3><span>FROM THE COMMISH</span></div>
         <div className="newsGrid">
           {loading && <div className="panel emptyPanel">Loading league news…</div>}
@@ -103,6 +68,29 @@ export default function News() {
               <p>{story.body || ''}</p>
               <small>{formatDate(story.published_at)}</small>
             </article>
+          ))}
+        </div>
+      </section>
+
+      <section className="panel" style={{ marginBottom: 20 }}>
+        <div className="panelTitle"><h3>NFL WIRE</h3><span>AUTO REFRESH</span></div>
+        <p style={{ color: '#aab2bb', lineHeight: 1.6, marginTop: 0 }}>
+          The biggest NFL headlines in one place so the league can keep up without leaving Dirty Dozens. Headlines refresh automatically throughout the day.
+        </p>
+      </section>
+
+      <section>
+        <div className="panelTitle" style={{ marginBottom: 12 }}><h3>AROUND THE NFL</h3><span>PROVIDED BY ESPN</span></div>
+        <div className="newsGrid">
+          {nflLoading && <div className="panel emptyPanel">Loading NFL headlines…</div>}
+          {!nflLoading && nflError && <div className="panel emptyPanel">{nflError}</div>}
+          {!nflLoading && !nflError && nflStories.length === 0 && <div className="panel emptyPanel">No NFL headlines are available right now.</div>}
+          {!nflLoading && !nflError && nflStories.map((story, index) => (
+            <a className="panel storyCard" key={story.id} href={story.url} target="_blank" rel="noopener noreferrer" style={{ display: 'block', textDecoration: 'none' }}>
+              <span className="eyebrow">{index === 0 ? 'TOP STORY · ESPN' : 'NFL · ESPN'}</span>
+              <h2>{story.title}</h2>
+              <small>{formatDate(story.publishedAt)} · Read full story on ESPN →</small>
+            </a>
           ))}
         </div>
       </section>
