@@ -1,0 +1,1 @@
+Force production redeploy after Challenge HQ navigation update.
