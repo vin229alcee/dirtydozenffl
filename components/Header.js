@@ -7,6 +7,7 @@ const primaryLinks = [
   ["/standings", "Standings"],
   ["/power-rankings", "Power Rankings"],
   ["/pick-em", "Weekly Pick 'Em"],
+  ["/draft-race", "Draft Race"],
 ];
 
 // Profile editing now lives inside Manager HQ, so it is intentionally not a separate nav item.
