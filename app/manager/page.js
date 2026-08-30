@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import PageShell from '../../components/PageShell';
+import ManagerProfilePanel from '../../components/ManagerProfilePanel';
 import { getSupabase } from '../../lib/supabase';
 
 const supabase = getSupabase();
@@ -74,9 +75,11 @@ export default function ManagerDashboard(){
   if(!team)return <PageShell title="MANAGER HQ" kicker="PERSONAL DASHBOARD"><section className="panel"><h2>Account not linked</h2><p>{status}</p><button className="secondaryButton" onClick={signOut}>Sign Out</button></section></PageShell>;
 
   return <PageShell title="MANAGER HQ" kicker="PERSONAL DASHBOARD">
-    <section className="panel" style={{marginBottom:18}}><div style={{display:'flex',justifyContent:'space-between',gap:16,alignItems:'center',flexWrap:'wrap'}}><div><span className="eyebrow">{isCommissioner?'COMMISSIONER · MANAGER':'DIRTY DOZENS MANAGER'}</span><h2 style={{fontFamily:'Oswald',fontSize:34,margin:'6px 0'}}>{team.name}</h2><p style={{margin:0,color:'#9aa6b2'}}>{team.manager} · {team.wins??0}-{team.losses??0} · {score(team.points_for)} PF</p></div><div style={{display:'flex',gap:10,flexWrap:'wrap'}}>{isCommissioner&&<Link className="secondaryButton" href="/commissioner">Commissioner</Link>}<Link className="primaryButton" href="/trash-talk">Trash Talk</Link><button className="secondaryButton" onClick={signOut}>Sign Out</button></div></div></section>
+    <section className="panel" style={{marginBottom:18}}><div style={{display:'flex',justifyContent:'space-between',gap:16,alignItems:'center',flexWrap:'wrap'}}><div><span className="eyebrow">{isCommissioner?'COMMISSIONER · MANAGER':'DIRTY DOZENS MANAGER'}</span><h2 style={{fontFamily:'Oswald',fontSize:34,margin:'6px 0'}}>{team.name}</h2><p style={{margin:0,color:'#9aa6b2'}}>{team.manager} · {team.wins??0}-{team.losses??0} · {score(team.points_for)} PF</p></div><div style={{display:'flex',gap:10,flexWrap:'wrap'}}>{isCommissioner&&<Link className="secondaryButton" href="/commissioner">Commissioner</Link>}<Link className="secondaryButton" href={`/teams/${team.id}`}>Public Profile</Link><Link className="primaryButton" href="/trash-talk">Trash Talk</Link><button className="secondaryButton" onClick={signOut}>Sign Out</button></div></div></section>
 
-    <section style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(150px,1fr))',gap:12,marginBottom:18}}>
+    <ManagerProfilePanel session={session} team={team}/>
+
+    <section style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(150px,1fr))',gap:12,marginBottom:18,marginTop:18}}>
       {[['CURRENT RECORD',`${team.wins??0}-${team.losses??0}`],['WIN RATE',pct(team.wins,team.losses)],['POWER RANK',latestRank?`#${latestRank.rank}`:'—'],['POINTS FOR',score(team.points_for)],['CHAMPIONSHIPS',champions.length||team.championships||0],['WEEKLY HIGHS',highScores.length]].map(([label,value])=><div className="panel" key={label}><small style={{color:'#9aa6b2'}}>{label}</small><strong style={{display:'block',fontFamily:'Oswald',fontSize:30,marginTop:6}}>{value}</strong></div>)}
     </section>
 
