@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { track } from "@vercel/analytics";
 import PageShell from "../../components/PageShell";
 import { getSupabase } from "../../lib/supabase";
 import styles from "./page.module.css";
@@ -212,6 +213,13 @@ export default function PickEmPage() {
     if (saveError) {
       setError(saveError.message);
     } else {
+      track("Pick Em Submitted", {
+        season: SEASON,
+        week: Number(schedule.currentWeek),
+        picksSaved: rows.length,
+        boardSize: currentGames.length,
+        completeBoard: selectedCount === currentGames.length,
+      });
       setMessage(`Saved ${rows.length} pick${rows.length === 1 ? "" : "s"} for Week ${schedule.currentWeek}.`);
       await loadPublic();
     }
