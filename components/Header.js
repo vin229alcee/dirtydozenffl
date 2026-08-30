@@ -11,9 +11,9 @@ const primaryLinks = [
 ];
 
 // Profile editing now lives inside Manager HQ, so it is intentionally not a separate nav item.
+// Challenge HQ is commissioner-only and is intentionally accessed from Commissioner HQ instead of public navigation.
 const moreLinks = [
   ["/manager", "Manager HQ"],
-  ["/commissioner/challenges", "Challenge HQ"],
   ["/trash-talk", "Trash Talk"],
   ["/playoff-race", "Playoff Race"],
   ["/recap", "Recap"],
