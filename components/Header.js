@@ -9,6 +9,7 @@ const primaryLinks = [
 ];
 
 const moreLinks = [
+  ["/trash-talk", "Trash Talk"],
   ["/playoff-race", "Playoff Race"],
   ["/recap", "Recap"],
   ["/awards", "Awards"],
