@@ -9,6 +9,7 @@ import "./nav-cleanup.css";
 import "./trash-talk.css";
 import "./matchup-projections.css";
 import "./team-profile.css";
+import "./profile-placeholder-cleanup.css";
 
 export const metadata = {
   title: "Dirty Dozens FFL",
