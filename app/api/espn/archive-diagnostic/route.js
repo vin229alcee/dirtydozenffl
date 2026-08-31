@@ -38,6 +38,7 @@ export async function GET() {
     leagueId: LEAGUE_ID,
     hasEspnS2: Boolean(process.env.ESPN_S2),
     hasSwid: Boolean(process.env.ESPN_SWID),
+    credentialRefresh: "2026-08-31",
     results,
   }, { headers: { "Cache-Control": "no-store" } });
 }
