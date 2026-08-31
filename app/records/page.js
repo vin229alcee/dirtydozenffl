@@ -32,15 +32,27 @@ async function fetchSeason(season) {
 }
 
 async function getEspnArchive() {
-  const seasonIds = Array.from(
-    { length: CURRENT_SEASON - START_SEASON + 1 },
-    (_, index) => START_SEASON + index,
-  );
+  const seasonIds = Array.from({ length: CURRENT_SEASON - START_SEASON + 1 }, (_, index) => START_SEASON + index);
   const results = await Promise.all(seasonIds.map(async (season) => {
     try { return { season, data: await fetchSeason(season) }; }
     catch { return null; }
   }));
   return results.filter(Boolean);
+}
+
+function historicalGameIsFinal(game, season) {
+  if (!game?.home || !game?.away) return false;
+  const homeScore = Number(game.home.totalPoints);
+  const awayScore = Number(game.away.totalPoints);
+  if (!Number.isFinite(homeScore) || !Number.isFinite(awayScore)) return false;
+  if (season < CURRENT_SEASON) return homeScore > 0 || awayScore > 0;
+  return Boolean(game.winner && game.winner !== "UNDECIDED");
+}
+
+function inferredWinner(homeScore, awayScore) {
+  if (homeScore > awayScore) return "HOME";
+  if (awayScore > homeScore) return "AWAY";
+  return "TIE";
 }
 
 function buildAutomaticRecords(archive) {
@@ -56,15 +68,29 @@ function buildAutomaticRecords(archive) {
     }));
 
     for (const game of data?.schedule || []) {
-      if (!game?.home || !game?.away || !game.winner || game.winner === "UNDECIDED") continue;
+      if (!historicalGameIsFinal(game, season)) continue;
       const homeScore = Number(game.home.totalPoints);
       const awayScore = Number(game.away.totalPoints);
-      if (!Number.isFinite(homeScore) || !Number.isFinite(awayScore)) continue;
-      games.push({ season, week: Number(game.matchupPeriodId || 0), homeId: Number(game.home.teamId), awayId: Number(game.away.teamId), homeName: teamName(teams.get(Number(game.home.teamId))), awayName: teamName(teams.get(Number(game.away.teamId))), homeScore, awayScore, winner: game.winner, margin: Math.abs(homeScore - awayScore) });
+      const winner = inferredWinner(homeScore, awayScore);
+      games.push({
+        season,
+        week: Number(game.matchupPeriodId || 0),
+        homeId: Number(game.home.teamId),
+        awayId: Number(game.away.teamId),
+        homeName: teamName(teams.get(Number(game.home.teamId))),
+        awayName: teamName(teams.get(Number(game.away.teamId))),
+        homeScore,
+        awayScore,
+        winner,
+        margin: Math.abs(homeScore - awayScore),
+      });
     }
   }
 
-  const scores = games.flatMap((game) => [{ season: game.season, week: game.week, team: game.homeName, score: game.homeScore }, { season: game.season, week: game.week, team: game.awayName, score: game.awayScore }]);
+  const scores = games.flatMap((game) => [
+    { season: game.season, week: game.week, team: game.homeName, score: game.homeScore },
+    { season: game.season, week: game.week, team: game.awayName, score: game.awayScore },
+  ]);
   const high = scores.length ? [...scores].sort((a, b) => b.score - a.score)[0] : null;
   const low = scores.length ? [...scores].sort((a, b) => a.score - b.score)[0] : null;
   const blowout = games.length ? [...games].sort((a, b) => b.margin - a.margin)[0] : null;
@@ -84,7 +110,9 @@ function buildAutomaticRecords(archive) {
         const next = { count: current.count + 1, startWeek: current.count ? current.startWeek : game.week };
         bySeasonTeam.set(key, next);
         if (!bestStreak || next.count > bestStreak.count) bestStreak = { count: next.count, season: game.season, startWeek: next.startWeek, endWeek: game.week, team: name };
-      } else bySeasonTeam.set(key, { count: 0, startWeek: null });
+      } else {
+        bySeasonTeam.set(key, { count: 0, startWeek: null });
+      }
     }
   }
 
