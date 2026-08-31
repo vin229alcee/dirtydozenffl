@@ -68,13 +68,17 @@ function initials(name) {
   return String(name || "QB").split(" ").map((part) => part[0]).join("").slice(0, 2).toUpperCase();
 }
 
+function traitCount(entry) {
+  return Object.keys(entry?.traits || {}).length;
+}
+
 export default function BuildAStarPage() {
   const [session, setSession] = useState(null);
   const [managerTeam, setManagerTeam] = useState(null);
   const [teams, setTeams] = useState([]);
   const [week, setWeek] = useState(1);
   const [results, setResults] = useState({});
-  const [leaderboard, setLeaderboard] = useState([]);
+  const [entries, setEntries] = useState([]);
   const [spinning, setSpinning] = useState("");
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(true);
@@ -89,7 +93,7 @@ export default function BuildAStarPage() {
     const nextTeams = teamsRes.data || [];
     setTeams(nextTeams);
     const byId = Object.fromEntries(nextTeams.map((team) => [Number(team.id), team]));
-    setLeaderboard((entriesRes.data || []).map((entry) => ({ ...entry, team: byId[Number(entry.manager_team_id)] })));
+    setEntries((entriesRes.data || []).map((entry) => ({ ...entry, team: byId[Number(entry.manager_team_id)] })));
   }
 
   useEffect(() => {
@@ -124,31 +128,64 @@ export default function BuildAStarPage() {
     resolveManager();
   }, [session, teams]);
 
-  const existing = managerTeam ? leaderboard.find((entry) => Number(entry.manager_team_id) === Number(managerTeam.team_id)) : null;
+  const existing = managerTeam ? entries.find((entry) => Number(entry.manager_team_id) === Number(managerTeam.team_id)) : null;
+  const leaderboard = entries.filter((entry) => traitCount(entry) === TRAITS.length);
 
   useEffect(() => {
-    if (existing?.traits && Object.keys(results).length === 0) {
+    if (existing?.traits) {
       setResults(existing.traits);
-      setMessage(`Your Week ${week} build is locked. One build per manager, per week.`);
+      if (traitCount(existing) >= TRAITS.length) setMessage(`Your Week ${week} build is permanently locked.`);
+      else if (traitCount(existing) > 0) setMessage(`Week ${week} build restored. Your previous spins are locked.`);
     }
-  }, [existing?.id]);
+  }, [existing?.id, existing?.updated_at]);
 
   const completed = TRAITS.every(([key]) => results[key]);
-  const locked = Boolean(existing);
+  const locked = Boolean(existing && traitCount(existing) >= TRAITS.length);
   const overall = useMemo(() => {
     const values = TRAITS.map(([key]) => Number(results[key]?.rating)).filter(Number.isFinite);
     return values.length ? Math.round(values.reduce((sum, value) => sum + value, 0) / values.length) : 0;
   }, [results]);
   const title = archetype(overall);
 
+  async function persistSpin(key, result) {
+    if (!supabase || !session?.user || !managerTeam) throw new Error("Sign in with your manager account before spinning.");
+    const nextTraits = { ...results, [key]: result };
+    const nextCount = Object.keys(nextTraits).length;
+    const values = TRAITS.map(([traitKey]) => Number(nextTraits[traitKey]?.rating)).filter(Number.isFinite);
+    const nextOverall = nextCount === TRAITS.length ? Math.round(values.reduce((sum, value) => sum + value, 0) / values.length) : 0;
+    const nextArchetype = nextCount === TRAITS.length ? archetype(nextOverall) : "IN PROGRESS";
+    const now = new Date().toISOString();
+
+    let response;
+    if (existing?.id) {
+      response = await supabase.from("build_a_star_entries").update({ traits: nextTraits, overall: nextOverall, archetype: nextArchetype, updated_at: now }).eq("id", existing.id);
+    } else {
+      response = await supabase.from("build_a_star_entries").insert({ season: SEASON, week: Number(week), manager_team_id: Number(managerTeam.team_id), user_id: session.user.id, position: "QB", traits: nextTraits, overall: nextOverall, archetype: nextArchetype, created_at: now, updated_at: now });
+    }
+    if (response.error) throw response.error;
+    setResults(nextTraits);
+    await loadPublic(week);
+    if (nextCount === TRAITS.length) setMessage(`Week ${week} build complete and permanently locked.`);
+  }
+
   function spin(key) {
     if (spinning || locked || results[key]) return;
+    if (!session?.user || !managerTeam) {
+      setMessage("Sign in with your manager account before spinning. Every spin is permanent.");
+      return;
+    }
     setMessage("");
     setSpinning(key);
-    window.setTimeout(() => {
+    window.setTimeout(async () => {
       const source = QB_POOL[Math.floor(Math.random() * QB_POOL.length)];
-      setResults((current) => ({ ...current, [key]: { player: source.name, rating: source.ratings[key] } }));
-      setSpinning("");
+      const result = { player: source.name, rating: source.ratings[key] };
+      try {
+        await persistSpin(key, result);
+      } catch (error) {
+        setMessage(error?.message || "That spin could not be saved. Try again.");
+      } finally {
+        setSpinning("");
+      }
     }, 520);
   }
 
@@ -158,27 +195,11 @@ export default function BuildAStarPage() {
     if (next) spin(next[0]);
   }
 
-  async function saveBuild() {
-    if (!supabase || !session?.user || !managerTeam || !completed || locked) return;
-    setSaving(true); setMessage("");
-    const payload = {
-      season: SEASON,
-      week: Number(week),
-      manager_team_id: Number(managerTeam.team_id),
-      user_id: session.user.id,
-      position: "QB",
-      overall,
-      archetype: title,
-      traits: results,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    };
-    const { error } = await supabase.from("build_a_star_entries").insert(payload);
-    if (error) setMessage(error.message);
-    else {
-      setMessage(`Week ${week} QB submitted. Your build is now permanently locked.`);
-      await loadPublic(week);
-    }
+  async function lockBuild() {
+    if (!completed || locked) return;
+    setSaving(true);
+    await loadPublic(week);
+    setMessage(`Week ${week} QB is already locked. Every trait was saved at the moment it was spun.`);
     setSaving(false);
   }
 
@@ -189,7 +210,7 @@ export default function BuildAStarPage() {
           <div className={styles.topline}><span>WEEK {week} · QB EDITION</span><span>{Object.keys(results).length}/9 TRAITS</span></div>
           <div className={styles.stage}>
             <div className={styles.leftTraits}>
-              {TRAITS.slice(0, 4).map(([key, label]) => <TraitCard key={key} traitKey={key} label={label} result={results[key]} spinning={spinning === key} locked={locked} onSpin={() => spin(key)} />)}
+              {TRAITS.slice(0, 4).map(([key, label]) => <TraitCard key={key} label={label} result={results[key]} spinning={spinning === key} locked={locked} onSpin={() => spin(key)} />)}
             </div>
             <div className={styles.playerWrap}>
               <div className={styles.player}><div className={styles.helmet}>DD</div><div className={styles.jersey}>12</div></div>
@@ -197,23 +218,23 @@ export default function BuildAStarPage() {
               <h2>{completed ? title : locked ? "Weekly Build Locked" : "Build Your Quarterback"}</h2>
             </div>
             <div className={styles.rightTraits}>
-              {TRAITS.slice(4).map(([key, label]) => <TraitCard key={key} traitKey={key} label={label} result={results[key]} spinning={spinning === key} locked={locked} onSpin={() => spin(key)} />)}
+              {TRAITS.slice(4).map(([key, label]) => <TraitCard key={key} label={label} result={results[key]} spinning={spinning === key} locked={locked} onSpin={() => spin(key)} />)}
             </div>
           </div>
           <div className={styles.actions}>
             <button className="primaryButton" onClick={spinNext} disabled={locked || completed || Boolean(spinning)}>{locked ? "BUILD LOCKED" : spinning ? "SPINNING..." : completed ? "BUILD COMPLETE" : "SPIN NEXT TRAIT"}</button>
           </div>
-          {completed && <div className={styles.finalCard}><span>FINAL BUILD</span><strong>{overall} OVR</strong><b>{title}</b><p>{locked ? "This is your official weekly QB. No resets, rerolls or replacements." : "Nine spins. Nine permanent traits. Submit it when the build is complete."}</p></div>}
+          {completed && <div className={styles.finalCard}><span>FINAL BUILD</span><strong>{overall} OVR</strong><b>{title}</b><p>This is your official weekly QB. Every trait was locked the instant it was spun.</p></div>}
           <div className={styles.submitRow}>
-            {!session ? <p>Sign in through Manager HQ or Weekly Pick 'Em to submit your build.</p> : !managerTeam ? <p>Your login is not linked to a franchise yet.</p> : locked ? <button className="primaryButton" disabled>WEEK {week} BUILD SUBMITTED</button> : <button className="primaryButton" onClick={saveBuild} disabled={!completed || saving}>{saving ? "SAVING..." : "LOCK IN BUILD"}</button>}
+            {!session ? <p>Sign in through Manager HQ or Weekly Pick 'Em before spinning.</p> : !managerTeam ? <p>Your login is not linked to a franchise yet.</p> : completed ? <button className="primaryButton" onClick={lockBuild} disabled={saving || locked}>{locked ? `WEEK ${week} BUILD LOCKED` : "CONFIRM BUILD"}</button> : <p>Each spin saves instantly. Closing or refreshing the page will not reset your build.</p>}
             {message ? <span>{message}</span> : null}
           </div>
         </section>
 
         <aside className={`panel ${styles.board}`}>
           <div className="panelTitle"><h3>WEEK {week} LEADERBOARD</h3><span>QB OVR</span></div>
-          {loading ? <p>Loading league builds...</p> : leaderboard.length ? leaderboard.map((entry, index) => <div className={styles.boardRow} key={entry.id}><b>#{index + 1}</b><span className={styles.avatar}>{initials(entry.team?.manager || entry.team?.name)}</span><div><strong>{entry.team?.name || "Franchise"}</strong><small>{entry.team?.manager || "Manager"} · {entry.archetype}</small></div><em>{entry.overall}</em></div>) : <p className={styles.empty}>No Week {week} builds yet. Set the bar.</p>}
-          <div className={styles.rules}><strong>HOW IT WORKS</strong><p>Each trait gets exactly one spin. There are stars, starters, backups and disasters in the QB pool. Once submitted, your weekly build is permanent and cannot be reset or replaced.</p></div>
+          {loading ? <p>Loading league builds...</p> : leaderboard.length ? leaderboard.map((entry, index) => <div className={styles.boardRow} key={entry.id}><b>#{index + 1}</b><span className={styles.avatar}>{initials(entry.team?.manager || entry.team?.name)}</span><div><strong>{entry.team?.name || "Franchise"}</strong><small>{entry.team?.manager || "Manager"} · {entry.archetype}</small></div><em>{entry.overall}</em></div>) : <p className={styles.empty}>No completed Week {week} builds yet. Set the bar.</p>}
+          <div className={styles.rules}><strong>HOW IT WORKS</strong><p>Each trait gets exactly one spin. Stars, starters, backups and disasters all live in the QB pool. Every result saves immediately, and previously spun traits cannot be changed, removed or rerolled.</p></div>
         </aside>
       </div>
     </PageShell>
@@ -221,5 +242,5 @@ export default function BuildAStarPage() {
 }
 
 function TraitCard({ label, result, spinning, locked, onSpin }) {
-  return <button className={`${styles.trait} ${result ? styles.filled : ""}`} onClick={onSpin} disabled={Boolean(result) || spinning || locked}><span>{label}</span>{spinning ? <strong>...</strong> : result ? <><strong>{result.rating}</strong><small>{result.player}</small></> : locked ? <><strong>LOCKED</strong><small>Weekly build submitted</small></> : <><strong>SPIN</strong><small>One chance only</small></>}</button>;
+  return <button className={`${styles.trait} ${result ? styles.filled : ""}`} onClick={onSpin} disabled={Boolean(result) || spinning || locked}><span>{label}</span>{spinning ? <strong>...</strong> : result ? <><strong>{result.rating}</strong><small>{result.player}</small></> : locked ? <><strong>LOCKED</strong><small>Weekly build complete</small></> : <><strong>SPIN</strong><small>One chance only</small></>}</button>;
 }
