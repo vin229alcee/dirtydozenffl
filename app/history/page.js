@@ -5,6 +5,7 @@ export const dynamic = "force-dynamic";
 
 const ESPN_LEAGUE_ID = "2145514194";
 const CURRENT_SEASON = 2026;
+const START_SEASON = 2022;
 
 const KNOWN_CHAMPIONS = [
   { id: "known-2024", season: 2024, team_id: null, team_name: "Joe B Wan Kenobi", manager: "Antonio Samilton", source: "LEAGUE ARCHIVE" },
@@ -35,34 +36,30 @@ async function fetchEspnSeason(season) {
 }
 
 async function getEspnChampions() {
-  try {
-    const current = await fetchEspnSeason(CURRENT_SEASON);
-    const previousSeasons = [...new Set((current?.status?.previousSeasons || []).map(Number))]
-      .filter((season) => season > 2000 && season < CURRENT_SEASON)
-      .sort((a, b) => b - a);
+  const seasonIds = Array.from(
+    { length: CURRENT_SEASON - START_SEASON },
+    (_, index) => START_SEASON + index,
+  ).sort((a, b) => b - a);
 
-    const seasons = await Promise.all(previousSeasons.map(async (season) => {
-      try { return { season, data: await fetchEspnSeason(season) }; }
-      catch { return null; }
-    }));
+  const seasons = await Promise.all(seasonIds.map(async (season) => {
+    try { return { season, data: await fetchEspnSeason(season) }; }
+    catch { return null; }
+  }));
 
-    return seasons.filter(Boolean).map(({ season, data }) => {
-      const members = new Map((data?.members || []).map((member) => [member.id, member]));
-      const champion = (data?.teams || []).find((team) => Number(team.rankCalculatedFinal) === 1);
-      if (!champion) return null;
-      const owner = members.get(champion?.owners?.[0]);
-      return {
-        id: `espn-${season}`,
-        season,
-        team_id: null,
-        team_name: espnTeamName(champion),
-        manager: owner?.displayName || [owner?.firstName, owner?.lastName].filter(Boolean).join(" ") || "Manager",
-        source: "ESPN",
-      };
-    }).filter(Boolean);
-  } catch {
-    return [];
-  }
+  return seasons.filter(Boolean).map(({ season, data }) => {
+    const members = new Map((data?.members || []).map((member) => [member.id, member]));
+    const champion = (data?.teams || []).find((team) => Number(team.rankCalculatedFinal) === 1);
+    if (!champion) return null;
+    const owner = members.get(champion?.owners?.[0]);
+    return {
+      id: `espn-${season}`,
+      season,
+      team_id: null,
+      team_name: espnTeamName(champion),
+      manager: owner?.displayName || [owner?.firstName, owner?.lastName].filter(Boolean).join(" ") || "Manager",
+      source: "ESPN",
+    };
+  }).filter(Boolean);
 }
 
 async function getHistory() {
@@ -113,7 +110,7 @@ export default async function History() {
 
   return <PageShell title="LEAGUE HISTORY" kicker="THE ARCHIVES">
     {champions.length ? <>
-      <div className="weekSummary"><div><span>HISTORY</span><strong>{champions.length}</strong></div><b>ESPN + LEAGUE ARCHIVE + COMMISSIONER</b></div>
+      <div className="weekSummary"><div><span>HISTORY</span><strong>{champions.length}</strong></div><b>{START_SEASON}–{CURRENT_SEASON - 1} · ESPN + LEAGUE ARCHIVE + COMMISSIONER</b></div>
       <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(260px,1fr))",gap:14}}>
         {champions.map((champion, index) => {
           const titles = titleCounts[champion.manager || champion.team_name] || 1;
