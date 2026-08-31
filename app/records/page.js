@@ -7,6 +7,7 @@ const ESPN_LEAGUE_ID = "2145514194";
 const CURRENT_SEASON = 2026;
 const START_SEASON = 2022;
 const MAP_RECORD = "__OWNER_MAP__";
+const ESPN_VIEWS = ["mTeam", "mStandings", "mMatchupScore", "mStatus"];
 
 function teamName(team) {
   if (!team) return "Team";
@@ -20,24 +21,55 @@ function espnHeaders() {
   return headers;
 }
 
-async function fetchSeason(season) {
-  const url = new URL(`https://lm-api-reads.fantasy.espn.com/apis/v3/games/ffl/seasons/${season}/segments/0/leagues/${ESPN_LEAGUE_ID}`);
-  url.searchParams.append("view", "mTeam");
-  url.searchParams.append("view", "mStandings");
-  url.searchParams.append("view", "mMatchupScore");
-  url.searchParams.append("view", "mStatus");
+function normalizeEspnPayload(payload) {
+  return Array.isArray(payload) ? (payload[0] || null) : payload;
+}
+
+function hasHistoricalData(data) {
+  return Boolean(data && Array.isArray(data.teams) && data.teams.length && Array.isArray(data.schedule) && data.schedule.length);
+}
+
+async function fetchEspnUrl(url) {
+  for (const view of ESPN_VIEWS) url.searchParams.append("view", view);
   const response = await fetch(url, { headers: espnHeaders(), cache: "no-store" });
-  if (!response.ok) throw new Error(`ESPN ${season}: ${response.status}`);
-  return response.json();
+  if (!response.ok) throw new Error(`ESPN: ${response.status}`);
+  return normalizeEspnPayload(await response.json());
+}
+
+async function fetchSeason(season) {
+  const standard = new URL(`https://lm-api-reads.fantasy.espn.com/apis/v3/games/ffl/seasons/${season}/segments/0/leagues/${ESPN_LEAGUE_ID}`);
+  let standardData = null;
+  try {
+    standardData = await fetchEspnUrl(standard);
+    if (season === CURRENT_SEASON || hasHistoricalData(standardData)) return standardData;
+  } catch (error) {
+    if (season === CURRENT_SEASON) throw error;
+  }
+
+  if (season < CURRENT_SEASON) {
+    const history = new URL(`https://lm-api-reads.fantasy.espn.com/apis/v3/games/ffl/leagueHistory/${ESPN_LEAGUE_ID}`);
+    history.searchParams.set("seasonId", String(season));
+    try {
+      const historyData = await fetchEspnUrl(history);
+      if (hasHistoricalData(historyData)) return historyData;
+    } catch {}
+  }
+
+  if (standardData) return standardData;
+  throw new Error(`ESPN ${season}: archive unavailable`);
 }
 
 async function getEspnArchive() {
   const seasonIds = Array.from({ length: CURRENT_SEASON - START_SEASON + 1 }, (_, index) => START_SEASON + index);
   const results = await Promise.all(seasonIds.map(async (season) => {
-    try { return { season, data: await fetchSeason(season) }; }
-    catch { return null; }
+    try {
+      const data = await fetchSeason(season);
+      return { season, data, teams: data?.teams?.length || 0, games: data?.schedule?.length || 0 };
+    } catch {
+      return { season, data: null, teams: 0, games: 0 };
+    }
   }));
-  return results.filter(Boolean);
+  return results;
 }
 
 function historicalGameIsFinal(game, season) {
@@ -60,6 +92,7 @@ function buildAutomaticRecords(archive) {
   const seasonTotals = [];
 
   for (const { season, data } of archive) {
+    if (!data) continue;
     const teams = new Map((data?.teams || []).map((team) => {
       const label = teamName(team);
       const overall = team?.record?.overall || {};
@@ -90,7 +123,7 @@ function buildAutomaticRecords(archive) {
   const scores = games.flatMap((game) => [
     { season: game.season, week: game.week, team: game.homeName, score: game.homeScore },
     { season: game.season, week: game.week, team: game.awayName, score: game.awayScore },
-  ]);
+  ]).filter((row) => row.score > 0);
   const high = scores.length ? [...scores].sort((a, b) => b.score - a.score)[0] : null;
   const low = scores.length ? [...scores].sort((a, b) => a.score - b.score)[0] : null;
   const blowout = games.length ? [...games].sort((a, b) => b.margin - a.margin)[0] : null;
@@ -119,7 +152,7 @@ function buildAutomaticRecords(archive) {
   return [
     high && { name: "Highest Weekly Score", value: high.score.toFixed(1), detail: high.team, season: high.season, week: high.week },
     low && { name: "Lowest Weekly Score", value: low.score.toFixed(1), detail: low.team, season: low.season, week: low.week },
-    blowout && { name: "Biggest Blowout", value: `${blowout.margin.toFixed(1)} pts`, detail: blowout.winner === "HOME" ? blowout.homeName : blowout.awayName, season: blowout.season, week: blowout.week },
+    blowout && { name: "Biggest Blowout", value: `${blowout.margin.toFixed(1)} pts`, detail: blowout.winner === "HOME" ? blowout.homeName : blowout.winner === "AWAY" ? blowout.awayName : `${blowout.homeName} vs ${blowout.awayName}`, season: blowout.season, week: blowout.week },
     closest && { name: "Closest Game", value: `${closest.margin.toFixed(1)} pts`, detail: `${closest.homeName} vs ${closest.awayName}`, season: closest.season, week: closest.week },
     seasonHigh && { name: "Highest Season Points", value: seasonHigh.points.toFixed(1), detail: seasonHigh.name, season: seasonHigh.season, week: null },
     bestStreak && { name: "Longest Winning Streak", value: `${bestStreak.count} wins`, detail: bestStreak.team, season: bestStreak.season, week: bestStreak.endWeek },
@@ -146,10 +179,12 @@ export default async function Records() {
   const [archive, local] = await Promise.all([getEspnArchive(), getCommissionerRecords()]);
   const auto = buildAutomaticRecords(archive);
   const byId = Object.fromEntries(local.teams.map((team) => [team.id, team]));
-  const availableSeasons = archive.map((row) => row.season);
-  const archiveLabel = availableSeasons.length ? `${Math.min(...availableSeasons)}–${Math.max(...availableSeasons)}` : `${START_SEASON}–${CURRENT_SEASON}`;
+  const loaded = archive.filter((row) => row.data && row.games > 0);
+  const archiveLabel = loaded.length ? `${Math.min(...loaded.map((row) => row.season))}–${Math.max(...loaded.map((row) => row.season))}` : `${START_SEASON}–${CURRENT_SEASON}`;
+  const archiveStatus = archive.map((row) => `${row.season}: ${row.games ? `${row.games} games` : "missing"}`).join(" · ");
 
   return <PageShell title="RECORD BOOK" kicker="IMMORTALIZED">
+    <section className="panel" style={{marginBottom:18}}><div className="panelTitle"><h3>ARCHIVE STATUS</h3><span>{archiveLabel}</span></div><p style={{margin:0,color:"#9aa4ae",lineHeight:1.6}}>{archiveStatus}</p></section>
     <div className="panelTitle"><h3>AUTOMATIC RECORDS</h3><span>ESPN ALL-TIME ARCHIVE · {archiveLabel}</span></div>
     {auto.length ? <div className="recordCards">{auto.map((record, index) => <article className="panel recordCard" key={record.name}><span>{String(index + 1).padStart(2, "0")}</span><h3>{record.name}</h3><strong>{record.value}</strong><p>{record.detail}{record.season ? ` · ${record.season}` : ""}{record.week ? ` Week ${record.week}` : ""}</p></article>)}</div> : <section className="panel emptyPanel">ESPN record data will appear once completed league games are available.</section>}
     <div className="panelTitle" style={{marginTop:28}}><h3>COMMISSIONER RECORDS</h3><span>HISTORICAL OVERRIDES & SPECIAL RECORDS</span></div>
