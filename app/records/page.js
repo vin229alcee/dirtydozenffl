@@ -5,6 +5,7 @@ export const dynamic = "force-dynamic";
 
 const ESPN_LEAGUE_ID = "2145514194";
 const CURRENT_SEASON = 2026;
+const START_SEASON = 2022;
 const MAP_RECORD = "__OWNER_MAP__";
 
 function teamName(team) {
@@ -31,30 +32,24 @@ async function fetchSeason(season) {
 }
 
 async function getEspnArchive() {
-  try {
-    const current = await fetchSeason(CURRENT_SEASON);
-    const previous = [...new Set((current?.status?.previousSeasons || []).map(Number))]
-      .filter((season) => season > 2000 && season < CURRENT_SEASON);
-    const seasonIds = [...previous, CURRENT_SEASON].sort((a, b) => a - b);
-    const results = await Promise.all(seasonIds.map(async (season) => {
-      try { return { season, data: season === CURRENT_SEASON ? current : await fetchSeason(season) }; }
-      catch { return null; }
-    }));
-    return results.filter(Boolean);
-  } catch {
-    return [];
-  }
+  const seasonIds = Array.from(
+    { length: CURRENT_SEASON - START_SEASON + 1 },
+    (_, index) => START_SEASON + index,
+  );
+  const results = await Promise.all(seasonIds.map(async (season) => {
+    try { return { season, data: await fetchSeason(season) }; }
+    catch { return null; }
+  }));
+  return results.filter(Boolean);
 }
 
 function buildAutomaticRecords(archive) {
   const games = [];
   const seasonTotals = [];
-  const teamLabels = new Map();
 
   for (const { season, data } of archive) {
     const teams = new Map((data?.teams || []).map((team) => {
       const label = teamName(team);
-      teamLabels.set(`${season}:${team.id}`, label);
       const overall = team?.record?.overall || {};
       seasonTotals.push({ season, teamId: Number(team.id), name: label, points: Number(overall.pointsFor || 0) });
       return [Number(team.id), team];
@@ -93,7 +88,14 @@ function buildAutomaticRecords(archive) {
     }
   }
 
-  return [high && { name: "Highest Weekly Score", value: high.score.toFixed(1), detail: high.team, season: high.season, week: high.week },low && { name: "Lowest Weekly Score", value: low.score.toFixed(1), detail: low.team, season: low.season, week: low.week },blowout && { name: "Biggest Blowout", value: `${blowout.margin.toFixed(1)} pts`, detail: blowout.winner === "HOME" ? blowout.homeName : blowout.awayName, season: blowout.season, week: blowout.week },closest && { name: "Closest Game", value: `${closest.margin.toFixed(1)} pts`, detail: `${closest.homeName} vs ${closest.awayName}`, season: closest.season, week: closest.week },seasonHigh && { name: "Highest Season Points", value: seasonHigh.points.toFixed(1), detail: seasonHigh.name, season: seasonHigh.season, week: null },bestStreak && { name: "Longest Winning Streak", value: `${bestStreak.count} wins`, detail: bestStreak.team, season: bestStreak.season, week: bestStreak.endWeek }].filter(Boolean);
+  return [
+    high && { name: "Highest Weekly Score", value: high.score.toFixed(1), detail: high.team, season: high.season, week: high.week },
+    low && { name: "Lowest Weekly Score", value: low.score.toFixed(1), detail: low.team, season: low.season, week: low.week },
+    blowout && { name: "Biggest Blowout", value: `${blowout.margin.toFixed(1)} pts`, detail: blowout.winner === "HOME" ? blowout.homeName : blowout.awayName, season: blowout.season, week: blowout.week },
+    closest && { name: "Closest Game", value: `${closest.margin.toFixed(1)} pts`, detail: `${closest.homeName} vs ${closest.awayName}`, season: closest.season, week: closest.week },
+    seasonHigh && { name: "Highest Season Points", value: seasonHigh.points.toFixed(1), detail: seasonHigh.name, season: seasonHigh.season, week: null },
+    bestStreak && { name: "Longest Winning Streak", value: `${bestStreak.count} wins`, detail: bestStreak.team, season: bestStreak.season, week: bestStreak.endWeek },
+  ].filter(Boolean);
 }
 
 async function getCommissionerRecords() {
@@ -101,8 +103,14 @@ async function getCommissionerRecords() {
   const key = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
   if (!url || !key) return { teams: [], records: [] };
   const supabase = createClient(url, key, { auth: { persistSession: false, autoRefreshToken: false } });
-  const [{ data: teams }, { data: records }] = await Promise.all([supabase.from("teams").select("*"),supabase.from("league_records").select("*").order("id")]);
-  const visible=(records||[]).filter(r=>{const n=String(r.record_name||"");return n!==MAP_RECORD&&!n.startsWith("__RULE_SCORE__:")&&!n.startsWith("__HOUSE_RULE__:");});
+  const [{ data: teams }, { data: records }] = await Promise.all([
+    supabase.from("teams").select("*"),
+    supabase.from("league_records").select("*").order("id"),
+  ]);
+  const visible = (records || []).filter((record) => {
+    const name = String(record.record_name || "");
+    return name !== MAP_RECORD && !name.startsWith("__RULE_SCORE__:") && !name.startsWith("__HOUSE_RULE__:");
+  });
   return { teams: teams || [], records: visible };
 }
 
@@ -110,5 +118,13 @@ export default async function Records() {
   const [archive, local] = await Promise.all([getEspnArchive(), getCommissionerRecords()]);
   const auto = buildAutomaticRecords(archive);
   const byId = Object.fromEntries(local.teams.map((team) => [team.id, team]));
-  return <PageShell title="RECORD BOOK" kicker="IMMORTALIZED"><div className="panelTitle"><h3>AUTOMATIC RECORDS</h3><span>ESPN ALL-TIME ARCHIVE</span></div>{auto.length ? <div className="recordCards">{auto.map((record, index) => <article className="panel recordCard" key={record.name}><span>{String(index + 1).padStart(2, "0")}</span><h3>{record.name}</h3><strong>{record.value}</strong><p>{record.detail}{record.season ? ` · ${record.season}` : ""}{record.week ? ` Week ${record.week}` : ""}</p></article>)}</div> : <section className="panel emptyPanel">ESPN record data will appear once completed league games are available.</section>}<div className="panelTitle" style={{marginTop:28}}><h3>COMMISSIONER RECORDS</h3><span>HISTORICAL OVERRIDES & SPECIAL RECORDS</span></div>{local.records.length ? <div className="recordCards">{local.records.map((record, index) => <article className="panel recordCard" key={record.id}><span>{String(index + 1).padStart(2, "0")}</span><h3>{record.record_name}</h3><strong>{record.record_value || "—"}</strong><p>{byId[record.team_id]?.name || "League Record"}{record.season ? ` · ${record.season}` : ""}{record.week ? ` Week ${record.week}` : ""}</p></article>)}</div> : <section className="panel emptyPanel">Special or legacy records can still be added from the Commissioner dashboard.</section>}</PageShell>;
+  const availableSeasons = archive.map((row) => row.season);
+  const archiveLabel = availableSeasons.length ? `${Math.min(...availableSeasons)}–${Math.max(...availableSeasons)}` : `${START_SEASON}–${CURRENT_SEASON}`;
+
+  return <PageShell title="RECORD BOOK" kicker="IMMORTALIZED">
+    <div className="panelTitle"><h3>AUTOMATIC RECORDS</h3><span>ESPN ALL-TIME ARCHIVE · {archiveLabel}</span></div>
+    {auto.length ? <div className="recordCards">{auto.map((record, index) => <article className="panel recordCard" key={record.name}><span>{String(index + 1).padStart(2, "0")}</span><h3>{record.name}</h3><strong>{record.value}</strong><p>{record.detail}{record.season ? ` · ${record.season}` : ""}{record.week ? ` Week ${record.week}` : ""}</p></article>)}</div> : <section className="panel emptyPanel">ESPN record data will appear once completed league games are available.</section>}
+    <div className="panelTitle" style={{marginTop:28}}><h3>COMMISSIONER RECORDS</h3><span>HISTORICAL OVERRIDES & SPECIAL RECORDS</span></div>
+    {local.records.length ? <div className="recordCards">{local.records.map((record, index) => <article className="panel recordCard" key={record.id}><span>{String(index + 1).padStart(2, "0")}</span><h3>{record.record_name}</h3><strong>{record.record_value || "—"}</strong><p>{byId[record.team_id]?.name || "League Record"}{record.season ? ` · ${record.season}` : ""}{record.week ? ` Week ${record.week}` : ""}</p></article>)}</div> : <section className="panel emptyPanel">Special or legacy records can still be added from the Commissioner dashboard.</section>}
+  </PageShell>;
 }
