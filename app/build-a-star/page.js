@@ -32,6 +32,22 @@ const QB_POOL = [
   { name: "Dak Prescott", ratings: { processing: 95, accuracy: 96, arm: 94, legs: 86, vision: 95, leadership: 96, playmaking: 92, build: 94, clutch: 90 } },
   { name: "Matthew Stafford", ratings: { processing: 98, accuracy: 97, arm: 98, legs: 76, vision: 98, leadership: 95, playmaking: 95, build: 92, clutch: 98 } },
   { name: "Drake Maye", ratings: { processing: 91, accuracy: 93, arm: 97, legs: 95, vision: 92, leadership: 92, playmaking: 96, build: 94, clutch: 92 } },
+  { name: "Kirk Cousins", ratings: { processing: 88, accuracy: 89, arm: 85, legs: 62, vision: 88, leadership: 89, playmaking: 77, build: 82, clutch: 78 } },
+  { name: "Geno Smith", ratings: { processing: 85, accuracy: 86, arm: 88, legs: 76, vision: 84, leadership: 86, playmaking: 83, build: 84, clutch: 80 } },
+  { name: "Gardner Minshew", ratings: { processing: 78, accuracy: 79, arm: 74, legs: 78, vision: 77, leadership: 84, playmaking: 80, build: 78, clutch: 80 } },
+  { name: "Jacoby Brissett", ratings: { processing: 81, accuracy: 78, arm: 80, legs: 73, vision: 80, leadership: 87, playmaking: 75, build: 88, clutch: 77 } },
+  { name: "Mac Jones", ratings: { processing: 76, accuracy: 79, arm: 72, legs: 65, vision: 75, leadership: 74, playmaking: 68, build: 73, clutch: 69 } },
+  { name: "Kenny Pickett", ratings: { processing: 73, accuracy: 75, arm: 76, legs: 78, vision: 72, leadership: 78, playmaking: 74, build: 79, clutch: 73 } },
+  { name: "Daniel Jones", ratings: { processing: 74, accuracy: 76, arm: 83, legs: 88, vision: 72, leadership: 79, playmaking: 79, build: 84, clutch: 69 } },
+  { name: "Desmond Ridder", ratings: { processing: 68, accuracy: 70, arm: 78, legs: 84, vision: 66, leadership: 73, playmaking: 72, build: 82, clutch: 64 } },
+  { name: "Zach Wilson", ratings: { processing: 64, accuracy: 69, arm: 91, legs: 84, vision: 63, leadership: 68, playmaking: 76, build: 78, clutch: 61 } },
+  { name: "Mitchell Trubisky", ratings: { processing: 69, accuracy: 72, arm: 78, legs: 82, vision: 67, leadership: 76, playmaking: 73, build: 80, clutch: 66 } },
+  { name: "Bailey Zappe", ratings: { processing: 66, accuracy: 70, arm: 69, legs: 64, vision: 65, leadership: 70, playmaking: 64, build: 72, clutch: 65 } },
+  { name: "Nathan Peterman", ratings: { processing: 58, accuracy: 61, arm: 67, legs: 62, vision: 55, leadership: 66, playmaking: 58, build: 68, clutch: 48 } },
+  { name: "Tim Boyle", ratings: { processing: 57, accuracy: 60, arm: 74, legs: 55, vision: 56, leadership: 65, playmaking: 55, build: 69, clutch: 52 } },
+  { name: "P.J. Walker", ratings: { processing: 63, accuracy: 64, arm: 81, legs: 77, vision: 61, leadership: 70, playmaking: 70, build: 75, clutch: 60 } },
+  { name: "Brett Rypien", ratings: { processing: 62, accuracy: 67, arm: 65, legs: 58, vision: 63, leadership: 69, playmaking: 59, build: 68, clutch: 58 } },
+  { name: "Jeff Driskel", ratings: { processing: 61, accuracy: 63, arm: 76, legs: 86, vision: 59, leadership: 68, playmaking: 68, build: 81, clutch: 57 } },
 ];
 
 function archetype(overall) {
@@ -41,7 +57,11 @@ function archetype(overall) {
   if (overall >= 88) return "Pro Bowl Quarterback";
   if (overall >= 84) return "Franchise Quarterback";
   if (overall >= 80) return "Quality Starter";
-  return "Developmental Starter";
+  if (overall >= 75) return "Bridge Starter";
+  if (overall >= 70) return "Journeyman QB";
+  if (overall >= 65) return "Backup Quarterback";
+  if (overall >= 60) return "Roster Bubble";
+  return "Historic Bust";
 }
 
 function initials(name) {
@@ -104,16 +124,25 @@ export default function BuildAStarPage() {
     resolveManager();
   }, [session, teams]);
 
+  const existing = managerTeam ? leaderboard.find((entry) => Number(entry.manager_team_id) === Number(managerTeam.team_id)) : null;
+
+  useEffect(() => {
+    if (existing?.traits && Object.keys(results).length === 0) {
+      setResults(existing.traits);
+      setMessage(`Your Week ${week} build is locked. One build per manager, per week.`);
+    }
+  }, [existing?.id]);
+
   const completed = TRAITS.every(([key]) => results[key]);
+  const locked = Boolean(existing);
   const overall = useMemo(() => {
     const values = TRAITS.map(([key]) => Number(results[key]?.rating)).filter(Number.isFinite);
     return values.length ? Math.round(values.reduce((sum, value) => sum + value, 0) / values.length) : 0;
   }, [results]);
   const title = archetype(overall);
-  const existing = managerTeam ? leaderboard.find((entry) => Number(entry.manager_team_id) === Number(managerTeam.team_id)) : null;
 
   function spin(key) {
-    if (spinning) return;
+    if (spinning || locked || results[key]) return;
     setMessage("");
     setSpinning(key);
     window.setTimeout(() => {
@@ -124,18 +153,13 @@ export default function BuildAStarPage() {
   }
 
   function spinNext() {
+    if (locked) return;
     const next = TRAITS.find(([key]) => !results[key]);
     if (next) spin(next[0]);
   }
 
-  function reset() {
-    if (spinning) return;
-    setResults({});
-    setMessage("");
-  }
-
   async function saveBuild() {
-    if (!supabase || !session?.user || !managerTeam || !completed) return;
+    if (!supabase || !session?.user || !managerTeam || !completed || locked) return;
     setSaving(true); setMessage("");
     const payload = {
       season: SEASON,
@@ -146,42 +170,42 @@ export default function BuildAStarPage() {
       overall,
       archetype: title,
       traits: results,
+      created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     };
-    const { error } = await supabase.from("build_a_star_entries").upsert(payload, { onConflict: "season,week,manager_team_id,position" });
+    const { error } = await supabase.from("build_a_star_entries").insert(payload);
     if (error) setMessage(error.message);
     else {
-      setMessage(`Week ${week} QB submitted to the league leaderboard.`);
+      setMessage(`Week ${week} QB submitted. Your build is now permanently locked.`);
       await loadPublic(week);
     }
     setSaving(false);
   }
 
   return (
-    <PageShell title="BUILD-A-STAR" kicker="QB LAB · SPIN 9 TRAITS · BUILD A LEGEND">
+    <PageShell title="BUILD-A-STAR" kicker="QB LAB · ONE SHOT · NO REROLLS">
       <div className={styles.layout}>
         <section className={`panel ${styles.game}`}>
           <div className={styles.topline}><span>WEEK {week} · QB EDITION</span><span>{Object.keys(results).length}/9 TRAITS</span></div>
           <div className={styles.stage}>
             <div className={styles.leftTraits}>
-              {TRAITS.slice(0, 4).map(([key, label]) => <TraitCard key={key} traitKey={key} label={label} result={results[key]} spinning={spinning === key} onSpin={() => spin(key)} />)}
+              {TRAITS.slice(0, 4).map(([key, label]) => <TraitCard key={key} traitKey={key} label={label} result={results[key]} spinning={spinning === key} locked={locked} onSpin={() => spin(key)} />)}
             </div>
             <div className={styles.playerWrap}>
               <div className={styles.player}><div className={styles.helmet}>DD</div><div className={styles.jersey}>12</div></div>
               <div className={styles.rating}><span>OVR</span><strong>{overall || "--"}</strong></div>
-              <h2>{completed ? title : "Build Your Quarterback"}</h2>
+              <h2>{completed ? title : locked ? "Weekly Build Locked" : "Build Your Quarterback"}</h2>
             </div>
             <div className={styles.rightTraits}>
-              {TRAITS.slice(4).map(([key, label]) => <TraitCard key={key} traitKey={key} label={label} result={results[key]} spinning={spinning === key} onSpin={() => spin(key)} />)}
+              {TRAITS.slice(4).map(([key, label]) => <TraitCard key={key} traitKey={key} label={label} result={results[key]} spinning={spinning === key} locked={locked} onSpin={() => spin(key)} />)}
             </div>
           </div>
           <div className={styles.actions}>
-            <button className="primaryButton" onClick={spinNext} disabled={completed || Boolean(spinning)}>{spinning ? "SPINNING..." : completed ? "BUILD COMPLETE" : "SPIN NEXT TRAIT"}</button>
-            <button className="secondaryButton" onClick={reset} disabled={Boolean(spinning)}>RESET BUILD</button>
+            <button className="primaryButton" onClick={spinNext} disabled={locked || completed || Boolean(spinning)}>{locked ? "BUILD LOCKED" : spinning ? "SPINNING..." : completed ? "BUILD COMPLETE" : "SPIN NEXT TRAIT"}</button>
           </div>
-          {completed && <div className={styles.finalCard}><span>FINAL BUILD</span><strong>{overall} OVR</strong><b>{title}</b><p>Your QB combines nine randomly drawn elite traits. Submit it to see where you rank this week.</p></div>}
+          {completed && <div className={styles.finalCard}><span>FINAL BUILD</span><strong>{overall} OVR</strong><b>{title}</b><p>{locked ? "This is your official weekly QB. No resets, rerolls or replacements." : "Nine spins. Nine permanent traits. Submit it when the build is complete."}</p></div>}
           <div className={styles.submitRow}>
-            {!session ? <p>Sign in through Manager HQ or Weekly Pick 'Em to submit your build.</p> : !managerTeam ? <p>Your login is not linked to a franchise yet.</p> : <button className="primaryButton" onClick={saveBuild} disabled={!completed || saving}>{saving ? "SAVING..." : existing ? "UPDATE WEEKLY BUILD" : "SUBMIT TO LEADERBOARD"}</button>}
+            {!session ? <p>Sign in through Manager HQ or Weekly Pick 'Em to submit your build.</p> : !managerTeam ? <p>Your login is not linked to a franchise yet.</p> : locked ? <button className="primaryButton" disabled>WEEK {week} BUILD SUBMITTED</button> : <button className="primaryButton" onClick={saveBuild} disabled={!completed || saving}>{saving ? "SAVING..." : "LOCK IN BUILD"}</button>}
             {message ? <span>{message}</span> : null}
           </div>
         </section>
@@ -189,13 +213,13 @@ export default function BuildAStarPage() {
         <aside className={`panel ${styles.board}`}>
           <div className="panelTitle"><h3>WEEK {week} LEADERBOARD</h3><span>QB OVR</span></div>
           {loading ? <p>Loading league builds...</p> : leaderboard.length ? leaderboard.map((entry, index) => <div className={styles.boardRow} key={entry.id}><b>#{index + 1}</b><span className={styles.avatar}>{initials(entry.team?.manager || entry.team?.name)}</span><div><strong>{entry.team?.name || "Franchise"}</strong><small>{entry.team?.manager || "Manager"} · {entry.archetype}</small></div><em>{entry.overall}</em></div>) : <p className={styles.empty}>No Week {week} builds yet. Set the bar.</p>}
-          <div className={styles.rules}><strong>HOW IT WORKS</strong><p>Spin once for each trait. The source quarterback supplies that trait's rating. Your final OVR is the average of all nine ratings. One saved QB per franchise each week.</p></div>
+          <div className={styles.rules}><strong>HOW IT WORKS</strong><p>Each trait gets exactly one spin. There are stars, starters, backups and disasters in the QB pool. Once submitted, your weekly build is permanent and cannot be reset or replaced.</p></div>
         </aside>
       </div>
     </PageShell>
   );
 }
 
-function TraitCard({ label, result, spinning, onSpin }) {
-  return <button className={`${styles.trait} ${result ? styles.filled : ""}`} onClick={onSpin} disabled={Boolean(result) || spinning}><span>{label}</span>{spinning ? <strong>...</strong> : result ? <><strong>{result.rating}</strong><small>{result.player}</small></> : <><strong>SPIN</strong><small>Tap to draw</small></>}</button>;
+function TraitCard({ label, result, spinning, locked, onSpin }) {
+  return <button className={`${styles.trait} ${result ? styles.filled : ""}`} onClick={onSpin} disabled={Boolean(result) || spinning || locked}><span>{label}</span>{spinning ? <strong>...</strong> : result ? <><strong>{result.rating}</strong><small>{result.player}</small></> : locked ? <><strong>LOCKED</strong><small>Weekly build submitted</small></> : <><strong>SPIN</strong><small>One chance only</small></>}</button>;
 }
