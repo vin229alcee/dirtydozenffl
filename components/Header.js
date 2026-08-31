@@ -7,6 +7,7 @@ const primaryLinks = [
   ["/standings", "Standings"],
   ["/power-rankings", "Power Rankings"],
   ["/pick-em", "Weekly Pick 'Em"],
+  ["/build-a-star", "Build-a-Star"],
   ["/draft-race", "Draft Race"],
 ];
 
