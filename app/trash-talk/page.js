@@ -9,6 +9,7 @@ const supabase = getSupabase();
 const MAX_IMAGE_BYTES = 8 * 1024 * 1024;
 const ALLOWED_TYPES = ['image/jpeg','image/png','image/webp','image/gif'];
 const SIGNED_URL_TTL = 60 * 60;
+const safeColor=(value,fallback)=>/^#[0-9a-f]{6}$/i.test(String(value||''))?String(value):fallback;
 
 function formatTime(value){
   try{return new Intl.DateTimeFormat('en-US',{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'}).format(new Date(value));}
@@ -57,8 +58,9 @@ export default function TrashTalkPage(){
 
   async function loadPosts(){
     if(!supabase)return;
-    const [{data:teamRows},{data:postRows,error}]=await Promise.all([
+    const [{data:teamRows},{data:profileRows},{data:postRows,error}]=await Promise.all([
       supabase.from('teams').select('id,name,manager').order('id'),
+      supabase.from('team_profiles').select('team_id,primary_color,secondary_color'),
       supabase.from('trash_talk_posts').select('id,author_id,team_id,body,media_path,created_at,updated_at').order('created_at',{ascending:false}).limit(100)
     ]);
     if(error){
@@ -66,12 +68,14 @@ export default function TrashTalkPage(){
       setLoading(false);
       return;
     }
+    const profileByTeam=Object.fromEntries((profileRows||[]).map(p=>[Number(p.team_id),p]));
+    const coloredTeams=(teamRows||[]).map(t=>{const p=profileByTeam[Number(t.id)]||{};return{...t,primary_color:safeColor(p.primary_color,'#aab4bc'),secondary_color:safeColor(p.secondary_color,'#6f7d87')}});
     const withMedia=await Promise.all((postRows||[]).map(async post=>{
       if(!post.media_path)return {...post,media_url:''};
       const {data,error:signedError}=await supabase.storage.from('trash-talk').createSignedUrl(post.media_path,SIGNED_URL_TTL);
       return {...post,media_url:signedError?'':data?.signedUrl||''};
     }));
-    setTeams(teamRows||[]);
+    setTeams(coloredTeams);
     setPosts(withMedia);
     setLoading(false);
   }
@@ -121,11 +125,7 @@ export default function TrashTalkPage(){
       if(mediaPath)await supabase.storage.from('trash-talk').remove([mediaPath]);
       setStatus(error.message);setPosting(false);return;
     }
-    track('Trash Talk Posted', {
-      postType: text && file ? 'text_and_meme' : file ? 'meme' : 'text',
-      hasMeme: Boolean(file),
-      textLength: text.length,
-    });
+    track('Trash Talk Posted',{postType:text&&file?'text_and_meme':file?'meme':'text',hasMeme:Boolean(file),textLength:text.length});
     setBody('');setFile(null);setPosting(false);await loadPosts();
   }
 
@@ -140,17 +140,19 @@ export default function TrashTalkPage(){
     await loadPosts();
   }
 
+  const activeManagers=new Set(posts.map(p=>Number(p.team_id))).size;
+
   return <PageShell title="TRASH TALK" kicker="LEAGUE SOCIAL FEED">
-    <section className="panel trashTalkIntro">
-      <div className="panelTitle"><h3>THE LOCKER ROOM</h3><span>MANAGERS ONLY TO POST</span></div>
-      <p>Talk your talk, drop a meme, keep receipts. Everyone can read the feed; only linked Dirty Dozens managers can post.</p>
+    <section className="panel trashTalkIntro trashTalkHero">
+      <div><span className="eyebrow">THE LOCKER ROOM</span><h2>Talk your talk. Keep the receipts.</h2><p>Everyone can read the feed. Linked Dirty Dozens managers can post text, memes, GIFs, and whatever becomes evidence later.</p></div>
+      <div className="trashTalkHeroStats"><div><small>POSTS LOADED</small><strong>{posts.length}</strong></div><div><small>ACTIVE TEAMS</small><strong>{activeManagers}</strong></div><div><small>ACCESS</small><strong>{session&&access?'READY':'READ'}</strong></div></div>
     </section>
 
-    {!session?<section className="panel trashTalkLogin"><div><span className="eyebrow">MANAGER ACCESS</span><h2>Sign in to post</h2><p>Use the Supabase login tied to your league manager account.</p></div><form onSubmit={signIn}><input type="email" placeholder="Email" value={email} onChange={e=>setEmail(e.target.value)} required/><input type="password" placeholder="Password" value={password} onChange={e=>setPassword(e.target.value)} required/><button className="primaryButton" type="submit">Sign In</button></form>{status&&<p className="trashTalkStatus">{status}</p>}</section>:
+    {!session?<section className="panel trashTalkLogin"><div><span className="eyebrow">MANAGER ACCESS</span><h2>Sign in to post</h2><p>Use the account linked to your Dirty Dozens team.</p></div><form onSubmit={signIn}><input type="email" placeholder="Email" value={email} onChange={e=>setEmail(e.target.value)} required/><input type="password" placeholder="Password" value={password} onChange={e=>setPassword(e.target.value)} required/><button className="primaryButton" type="submit">Sign In</button></form>{status&&<p className="trashTalkStatus">{status}</p>}</section>:
     <section className="panel trashTalkComposer"><div className="trashTalkIdentity"><div><span>POSTING AS</span><strong>{team?.name||'Linked manager'}</strong><small>{team?.manager||session.user.email}</small></div><button className="secondaryButton" type="button" onClick={signOut}>Sign Out</button></div>{access?<form onSubmit={submitPost}><textarea maxLength={1000} placeholder="Say something reckless…" value={body} onChange={e=>setBody(e.target.value)}/><div className="trashTalkComposerBar"><label className="trashTalkFile">Add Meme<input type="file" accept="image/jpeg,image/png,image/webp,image/gif" onChange={e=>setFile(e.target.files?.[0]||null)}/></label><span>{file?file.name:`${body.length}/1000`}</span><button className="primaryButton" type="submit" disabled={posting}>{posting?'Posting…':'Post Trash Talk'}</button></div></form>:<div className="trashTalkUnlinked">{status||'This account is not linked to a team yet.'}</div>}</section>}
 
     <section className="trashTalkFeed" aria-live="polite">
-      {loading?<div className="panel emptyPanel">Loading the locker room…</div>:posts.length?posts.map(post=>{const t=teamsById[Number(post.team_id)]||{};const canDelete=!!session&&(post.author_id===session.user.id||access?.is_commissioner);return <article className="panel trashTalkPost" key={post.id}><div className="trashTalkPostHead"><div><strong>{t.name||'Dirty Dozens'}</strong><span>{t.manager||'League Manager'} · {formatTime(post.created_at)}</span></div>{canDelete&&<button type="button" onClick={()=>deletePost(post)}>Delete</button>}</div>{post.body&&<p>{post.body}</p>}{post.media_url&&<img src={post.media_url} alt="Meme posted to Dirty Dozens trash talk" loading="lazy"/>}</article>}):<div className="panel emptyPanel"><h3>No trash talk yet.</h3><p>Somebody has to fire the first shot.</p></div>}
+      {loading?<div className="panel emptyPanel">Loading the locker room…</div>:posts.length?posts.map(post=>{const t=teamsById[Number(post.team_id)]||{};const canDelete=!!session&&(post.author_id===session.user.id||access?.is_commissioner);return <article className="panel trashTalkPost teamAccentRow" style={{'--team-primary':t.primary_color||'#aab4bc','--team-secondary':t.secondary_color||'#6f7d87'}} key={post.id}><div className="trashTalkPostHead"><div><strong className="teamColorGlow">{t.name||'Dirty Dozens'}</strong><span>{t.manager||'League Manager'} · {formatTime(post.created_at)}</span></div>{canDelete&&<button type="button" onClick={()=>deletePost(post)}>Delete</button>}</div>{post.body&&<p>{post.body}</p>}{post.media_url&&<img src={post.media_url} alt="Meme posted to Dirty Dozens trash talk" loading="lazy"/>}</article>}):<div className="panel emptyPanel"><h3>No trash talk yet.</h3><p>Somebody has to fire the first shot.</p></div>}
     </section>
   </PageShell>;
 }
