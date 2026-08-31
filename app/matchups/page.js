@@ -8,18 +8,9 @@ const ESPN_LEAGUE_ID = "2145514194";
 const SEASON = 2026;
 const ESPN_BASE = `https://lm-api-reads.fantasy.espn.com/apis/v3/games/ffl/seasons/${SEASON}/segments/0/leagues/${ESPN_LEAGUE_ID}`;
 const normalize = (value) => String(value || "").toLowerCase().replace(/[^a-z0-9]/g, "");
+const safeColor = (value, fallback) => /^#[0-9a-f]{6}$/i.test(String(value || "")) ? String(value) : fallback;
 const BENCH_SLOTS = new Set([20, 21]);
-const SLOT_NAMES = {
-  0: "QB",
-  2: "RB",
-  4: "WR",
-  6: "TE",
-  16: "D/ST",
-  17: "K",
-  20: "BE",
-  21: "IR",
-  23: "FLEX",
-};
+const SLOT_NAMES = { 0: "QB", 2: "RB", 4: "WR", 6: "TE", 16: "D/ST", 17: "K", 20: "BE", 21: "IR", 23: "FLEX" };
 
 function espnTeamName(team) {
   if (!team) return "Unknown Team";
@@ -34,23 +25,21 @@ function projectedPoints(side) {
 
 function rosterPlayers(side) {
   const entries = side?.rosterForCurrentScoringPeriod?.entries || side?.rosterForMatchupPeriod?.entries || [];
-  return entries
-    .map((entry) => {
-      const pool = entry?.playerPoolEntry || {};
-      const player = pool?.player || {};
-      const slotId = Number(entry?.lineupSlotId);
-      const scoreValue = pool?.appliedStatTotal;
-      return {
-        id: Number(player?.id || entry?.playerId || pool?.id || 0),
-        name: player?.fullName || [player?.firstName, player?.lastName].filter(Boolean).join(" ") || "Player",
-        slotId,
-        slot: SLOT_NAMES[slotId] || (BENCH_SLOTS.has(slotId) ? "BE" : "FLEX"),
-        score: scoreValue == null || !Number.isFinite(Number(scoreValue)) ? null : Number(scoreValue),
-        starter: !BENCH_SLOTS.has(slotId),
-        injuryStatus: player?.injuryStatus || entry?.injuryStatus || "",
-      };
-    })
-    .sort((a, b) => Number(b.starter) - Number(a.starter) || a.slotId - b.slotId || a.name.localeCompare(b.name));
+  return entries.map((entry) => {
+    const pool = entry?.playerPoolEntry || {};
+    const player = pool?.player || {};
+    const slotId = Number(entry?.lineupSlotId);
+    const scoreValue = pool?.appliedStatTotal;
+    return {
+      id: Number(player?.id || entry?.playerId || pool?.id || 0),
+      name: player?.fullName || [player?.firstName, player?.lastName].filter(Boolean).join(" ") || "Player",
+      slotId,
+      slot: SLOT_NAMES[slotId] || (BENCH_SLOTS.has(slotId) ? "BE" : "FLEX"),
+      score: scoreValue == null || !Number.isFinite(Number(scoreValue)) ? null : Number(scoreValue),
+      starter: !BENCH_SLOTS.has(slotId),
+      injuryStatus: player?.injuryStatus || entry?.injuryStatus || "",
+    };
+  }).sort((a, b) => Number(b.starter) - Number(a.starter) || a.slotId - b.slotId || a.name.localeCompare(b.name));
 }
 
 function espnHeaders() {
@@ -70,8 +59,12 @@ async function getTeams() {
   const key = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
   if (!url || !key) return [];
   const supabase = createClient(url, key, { auth: { persistSession: false, autoRefreshToken: false } });
-  const { data } = await supabase.from("teams").select("id,name,manager,short_name,logo").order("id");
-  return data || [];
+  const [{ data: teams }, { data: profiles }] = await Promise.all([
+    supabase.from("teams").select("id,name,manager,short_name,logo").order("id"),
+    supabase.from("team_profiles").select("team_id,primary_color,secondary_color")
+  ]);
+  const colors = Object.fromEntries((profiles || []).map((profile) => [Number(profile.team_id), profile]));
+  return (teams || []).map((team) => ({ ...team, profile: colors[Number(team.id)] || null }));
 }
 
 async function getEspnMatchups() {
@@ -81,7 +74,6 @@ async function getEspnMatchups() {
   const week = Number(data?.status?.currentMatchupPeriod || 1);
   const scoringPeriod = Number(data?.status?.currentScoringPeriod || week);
   const byId = new Map((data?.teams || []).map((team) => [Number(team.id), team]));
-
   let liveSchedule = [];
   try {
     const liveUrl = new URL(ESPN_BASE);
@@ -93,31 +85,24 @@ async function getEspnMatchups() {
   } catch {
     liveSchedule = [];
   }
-
   const liveById = new Map(liveSchedule.map((game) => [Number(game.id), game]));
   return {
     week,
-    matchups: (data?.schedule || [])
-      .filter((game) => Number(game.matchupPeriodId) === week && game.home && game.away)
-      .map((game) => {
-        const liveGame = liveById.get(Number(game.id));
-        const homeSide = liveGame?.home || game.home;
-        const awaySide = liveGame?.away || game.away;
-        return {
-          id: `espn-${game.id}`,
-          team1_id: Number(game.home.teamId),
-          team2_id: Number(game.away.teamId),
-          team1_name: espnTeamName(byId.get(Number(game.home.teamId))),
-          team2_name: espnTeamName(byId.get(Number(game.away.teamId))),
-          team1_score: homeSide?.totalPoints == null ? null : Number(homeSide.totalPoints),
-          team2_score: awaySide?.totalPoints == null ? null : Number(awaySide.totalPoints),
-          team1_projected: projectedPoints(homeSide),
-          team2_projected: projectedPoints(awaySide),
-          team1_players: rosterPlayers(homeSide),
-          team2_players: rosterPlayers(awaySide),
-          completed: Boolean(game.winner && game.winner !== "UNDECIDED"),
-        };
-      }),
+    matchups: (data?.schedule || []).filter((game) => Number(game.matchupPeriodId) === week && game.home && game.away).map((game) => {
+      const liveGame = liveById.get(Number(game.id));
+      const homeSide = liveGame?.home || game.home;
+      const awaySide = liveGame?.away || game.away;
+      return {
+        id: `espn-${game.id}`,
+        team1_id: Number(game.home.teamId), team2_id: Number(game.away.teamId),
+        team1_name: espnTeamName(byId.get(Number(game.home.teamId))), team2_name: espnTeamName(byId.get(Number(game.away.teamId))),
+        team1_score: homeSide?.totalPoints == null ? null : Number(homeSide.totalPoints),
+        team2_score: awaySide?.totalPoints == null ? null : Number(awaySide.totalPoints),
+        team1_projected: projectedPoints(homeSide), team2_projected: projectedPoints(awaySide),
+        team1_players: rosterPlayers(homeSide), team2_players: rosterPlayers(awaySide),
+        completed: Boolean(game.winner && game.winner !== "UNDECIDED"),
+      };
+    }),
   };
 }
 
@@ -131,102 +116,53 @@ async function getSavedMatchups() {
   return { matchups: (data || []).filter((matchup) => Number(matchup.week) === week), week };
 }
 
-function PlayerList({ teamName, players }) {
+function PlayerList({ teamName, players, color }) {
   if (!players?.length) return <div className="playerBoxEmpty">Player scoring will appear when ESPN publishes the Week box score.</div>;
-  return (
-    <div className="playerTeamBox">
-      <div className="playerTeamBoxHead"><strong>{teamName}</strong><span>PTS</span></div>
-      <div className="playerRows">
-        {players.map((player, index) => (
-          <div className={`playerScoreRow ${player.starter ? "starter" : "bench"}`} key={`${player.id}-${player.slotId}-${index}`}>
-            <span className="playerSlot">{player.slot}</span>
-            <span className="playerName">{player.name}{player.injuryStatus && player.injuryStatus !== "ACTIVE" ? <small>{player.injuryStatus}</small> : null}</span>
-            <strong>{player.score == null ? "—" : player.score.toFixed(1)}</strong>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
+  return <div className="playerTeamBox" style={{ "--franchise-color": color }}>
+    <div className="playerTeamBoxHead"><strong>{teamName}</strong><span>PTS</span></div>
+    <div className="playerRows">{players.map((player, index) => <div className={`playerScoreRow ${player.starter ? "starter" : "bench"}`} key={`${player.id}-${player.slotId}-${index}`}><span className="playerSlot">{player.slot}</span><span className="playerName">{player.name}{player.injuryStatus && player.injuryStatus !== "ACTIVE" ? <small>{player.injuryStatus}</small> : null}</span><strong>{player.score == null ? "—" : player.score.toFixed(1)}</strong></div>)}</div>
+  </div>;
 }
 
 export default async function Matchups() {
   const teams = await getTeams();
   const byName = Object.fromEntries(teams.map((team) => [normalize(team.name), team]));
   const byId = Object.fromEntries(teams.map((team) => [Number(team.id), team]));
-  let source = "ESPN LIVE";
-  let week = 1;
-  let matchups = [];
-
+  let source = "ESPN LIVE", week = 1, matchups = [];
   try {
     const espn = await getEspnMatchups();
     week = espn.week;
-    matchups = espn.matchups.map((matchup) => ({
-      ...matchup,
-      team1_name: byId[matchup.team1_id]?.name || matchup.team1_name,
-      team2_name: byId[matchup.team2_id]?.name || matchup.team2_name,
-    }));
+    matchups = espn.matchups.map((matchup) => ({ ...matchup, team1_name: byId[matchup.team1_id]?.name || matchup.team1_name, team2_name: byId[matchup.team2_id]?.name || matchup.team2_name }));
   } catch {
     const saved = await getSavedMatchups();
-    week = saved.week;
-    source = "SAVED RESULTS";
-    matchups = saved.matchups.map((matchup) => ({
-      ...matchup,
-      team1_name: byId[matchup.team1_id]?.name || "Team",
-      team2_name: byId[matchup.team2_id]?.name || "Team",
-      team1_projected: null,
-      team2_projected: null,
-      team1_players: [],
-      team2_players: [],
-    }));
+    week = saved.week; source = "SAVED RESULTS";
+    matchups = saved.matchups.map((matchup) => ({ ...matchup, team1_name: byId[matchup.team1_id]?.name || "Team", team2_name: byId[matchup.team2_id]?.name || "Team", team1_projected: null, team2_projected: null, team1_players: [], team2_players: [] }));
   }
 
-  return (
-    <PageShell title="MATCHUPS" kicker="2026 SEASON">
-      {matchups.length ? <>
-        <div className="weekSummary"><div><span>WEEK</span><strong>{week}</strong></div><b>{source}</b></div>
-        <div className="matchupGrid publicMatchupGrid">
-          {matchups.map((matchup) => {
-            const home = byName[normalize(matchup.team1_name)] || byId[matchup.team1_id];
-            const away = byName[normalize(matchup.team2_name)] || byId[matchup.team2_id];
-            const score1 = matchup.team1_score == null ? null : Number(matchup.team1_score);
-            const score2 = matchup.team2_score == null ? null : Number(matchup.team2_score);
-            const projected1 = matchup.team1_projected == null ? null : Number(matchup.team1_projected);
-            const projected2 = matchup.team2_projected == null ? null : Number(matchup.team2_projected);
-            return (
-              <article className="panel publicMatchupCard mascotMatchup" key={matchup.id}>
-                <div className={`publicTeamRow ${score1 != null && score2 != null && score1 > score2 ? "winner" : ""}`}>
-                  <div className="matchupIdentity">
-                    <div className="miniMascot"><Image src={mascotForTeam(matchup.team1_name, home?.logo || "")} alt="" width={70} height={70}/></div>
-                    <div><strong>{matchup.team1_name}</strong><small>{home?.manager || ""}</small></div>
-                  </div>
-                  <div className="matchupScoreBlock">
-                    <b>{score1 == null ? "—" : score1.toFixed(1)}</b>
-                    {projected1 != null ? <small>PROJ {projected1.toFixed(1)}</small> : null}
-                  </div>
-                </div>
-                <div className="matchupStatus">{matchup.completed ? "FINAL" : "LIVE / SCHEDULED"}</div>
-                <div className={`publicTeamRow ${score1 != null && score2 != null && score2 > score1 ? "winner" : ""}`}>
-                  <div className="matchupIdentity">
-                    <div className="miniMascot"><Image src={mascotForTeam(matchup.team2_name, away?.logo || "")} alt="" width={70} height={70}/></div>
-                    <div><strong>{matchup.team2_name}</strong><small>{away?.manager || ""}</small></div>
-                  </div>
-                  <div className="matchupScoreBlock">
-                    <b>{score2 == null ? "—" : score2.toFixed(1)}</b>
-                    {projected2 != null ? <small>PROJ {projected2.toFixed(1)}</small> : null}
-                  </div>
-                </div>
-                <details className="playerBoxscore">
-                  <summary>PLAYER BOX SCORE <span>View lineup scoring</span></summary>
-                  <div className="playerBoxscoreGrid">
-                    <PlayerList teamName={matchup.team1_name} players={matchup.team1_players} />
-                    <PlayerList teamName={matchup.team2_name} players={matchup.team2_players} />
-                  </div>
-                </details>
-              </article>
-            );
-          })}
-        </div>
-      </> : <section className="panel emptyPage"><h2>WEEK {week} SCHEDULE PENDING</h2><p>The ESPN schedule will appear here automatically as soon as it is available.</p></section>}
-    </PageShell>
-  );
+  return <PageShell title="MATCHUPS" kicker="2026 SEASON">
+    {matchups.length ? <>
+      <div className="weekSummary matchupWeekSummary"><div><span>CURRENT WEEK</span><strong>{week}</strong></div><div className="matchupSource"><span>DATA SOURCE</span><b>{source}</b></div></div>
+      <div className="matchupGrid publicMatchupGrid">{matchups.map((matchup, index) => {
+        const home = byName[normalize(matchup.team1_name)] || byId[matchup.team1_id];
+        const away = byName[normalize(matchup.team2_name)] || byId[matchup.team2_id];
+        const score1 = matchup.team1_score == null ? null : Number(matchup.team1_score), score2 = matchup.team2_score == null ? null : Number(matchup.team2_score);
+        const projected1 = matchup.team1_projected == null ? null : Number(matchup.team1_projected), projected2 = matchup.team2_projected == null ? null : Number(matchup.team2_projected);
+        const homePrimary = safeColor(home?.profile?.primary_color, "#ff263d"), homeSecondary = safeColor(home?.profile?.secondary_color, "#19a7ff");
+        const awayPrimary = safeColor(away?.profile?.primary_color, "#19a7ff"), awaySecondary = safeColor(away?.profile?.secondary_color, "#ff263d");
+        return <article className="panel publicMatchupCard mascotMatchup matchupUxCard" key={matchup.id} style={{ "--home-primary": homePrimary, "--home-secondary": homeSecondary, "--away-primary": awayPrimary, "--away-secondary": awaySecondary }}>
+          <div className="matchupCardTop"><span>MATCHUP {index + 1}</span><strong className={matchup.completed ? "isFinal" : "isLive"}>{matchup.completed ? "FINAL" : "LIVE / SCHEDULED"}</strong></div>
+          <div className={`publicTeamRow matchupFranchiseRow homeFranchise ${score1 != null && score2 != null && score1 > score2 ? "winner" : ""}`}>
+            <div className="matchupIdentity"><div className="miniMascot"><Image src={mascotForTeam(matchup.team1_name, home?.logo || "")} alt="" width={70} height={70}/></div><div className="matchupTeamCopy"><strong>{matchup.team1_name}</strong><small>{home?.manager || "Manager"}</small></div></div>
+            <div className="matchupScoreBlock"><b>{score1 == null ? "—" : score1.toFixed(1)}</b>{projected1 != null ? <small>PROJECTED {projected1.toFixed(1)}</small> : null}</div>
+          </div>
+          <div className="matchupVersus"><span></span><b>VS</b><span></span></div>
+          <div className={`publicTeamRow matchupFranchiseRow awayFranchise ${score1 != null && score2 != null && score2 > score1 ? "winner" : ""}`}>
+            <div className="matchupIdentity"><div className="miniMascot"><Image src={mascotForTeam(matchup.team2_name, away?.logo || "")} alt="" width={70} height={70}/></div><div className="matchupTeamCopy"><strong>{matchup.team2_name}</strong><small>{away?.manager || "Manager"}</small></div></div>
+            <div className="matchupScoreBlock"><b>{score2 == null ? "—" : score2.toFixed(1)}</b>{projected2 != null ? <small>PROJECTED {projected2.toFixed(1)}</small> : null}</div>
+          </div>
+          <details className="playerBoxscore"><summary>PLAYER BOX SCORE <span>View lineup scoring</span></summary><div className="playerBoxscoreGrid"><PlayerList teamName={matchup.team1_name} players={matchup.team1_players} color={homePrimary}/><PlayerList teamName={matchup.team2_name} players={matchup.team2_players} color={awayPrimary}/></div></details>
+        </article>;
+      })}</div>
+    </> : <section className="panel emptyPage"><h2>WEEK {week} SCHEDULE PENDING</h2><p>The ESPN schedule will appear here automatically as soon as it is available.</p></section>}
+  </PageShell>;
 }
