@@ -6,20 +6,24 @@ import { getSupabase } from "../../lib/supabase";
 
 const supabase=getSupabase();
 const SEASON=2026;
+const safeColor=(value,fallback)=>/^#[0-9a-f]{6}$/i.test(String(value||""))?String(value):fallback;
 
 export default function DraftRacePage(){
   const [teams,setTeams]=useState([]),[entries,setEntries]=useState([]),[challengeEntries,setChallengeEntries]=useState([]),[adjustments,setAdjustments]=useState([]),[schedule,setSchedule]=useState({games:[]});
 
   async function load(){
     if(!supabase)return;
-    const [{data:t},{data:e},{data:c},{data:a}]=await Promise.all([
+    const [{data:t},{data:e},{data:c},{data:a},{data:p}]=await Promise.all([
       supabase.from('teams').select('id,name,manager').order('id'),
       supabase.from('pick_em_entries').select('*').eq('season',SEASON),
       supabase.from('commissioner_challenge_entries').select('*,commissioner_challenges!inner(season,week,title,points,status)').eq('commissioner_challenges.season',SEASON),
       supabase.from('draft_race_adjustments').select('*').eq('season',SEASON),
+      supabase.from('team_profiles').select('team_id,primary_color,secondary_color')
     ]);
+    const profileByTeam=Object.fromEntries((p||[]).map(profile=>[Number(profile.team_id),profile]));
+    const coloredTeams=(t||[]).map(team=>{const profile=profileByTeam[Number(team.id)]||{};return{...team,primary_color:safeColor(profile.primary_color,'#d62828'),secondary_color:safeColor(profile.secondary_color,'#3a86ff')}});
     let sched={games:[]};try{sched=await fetch('/api/pick-em',{cache:'no-store'}).then(r=>r.json())}catch{}
-    setTeams(t||[]);setEntries(e||[]);setChallengeEntries(c||[]);setAdjustments(a||[]);setSchedule(sched||{games:[]});
+    setTeams(coloredTeams);setEntries(e||[]);setChallengeEntries(c||[]);setAdjustments(a||[]);setSchedule(sched||{games:[]});
   }
 
   useEffect(()=>{load()},[]);
@@ -58,9 +62,9 @@ export default function DraftRacePage(){
 
     <section className="commissionerGrid" style={{marginBottom:18}}>
       <article className="panel"><div className="panelTitle"><h3>SCORING FORMULA</h3><span>100 POINT SCALE</span></div><div className="recordRow"><span>Pick 'Em performance</span><strong>35%</strong></div><div className="recordRow"><span>Underdog picks / wins</span><strong>25%</strong></div><div className="recordRow"><span>Hot streaks</span><strong>10%</strong></div><div className="recordRow"><span>Commissioner challenges</span><strong>5%</strong></div><div className="recordRow"><span>Upset / manual bonuses</span><strong>25%</strong></div></article>
-      <article className="panel"><div className="panelTitle"><h3>WEEKLY CHALLENGE WINNERS</h3><span>{challengeWinners.length} SCORED</span></div>{challengeWinners.length?<div className="franchiseHeadRows">{challengeWinners.map(row=><div key={row.week}><div><strong>Week {row.week} · {row.title}</strong><small>{row.winners.map(w=>w.team?.name||'Team').join(', ')}</small></div><b>{row.winners.map(w=>`${w.points} pt${w.points===1?'':'s'}`).join(' · ')}</b></div>)}</div>:<div className="emptyPanel">Weekly challenge winners will appear here after challenges are scored.</div>}</article>
+      <article className="panel"><div className="panelTitle"><h3>WEEKLY CHALLENGE WINNERS</h3><span>{challengeWinners.length} SCORED</span></div>{challengeWinners.length?<div className="franchiseHeadRows">{challengeWinners.map(row=><div key={row.week}><div><strong>Week {row.week} · {row.title}</strong><small>{row.winners.map(w=><span className="teamColorGlow teamNameInline" style={{"--team-primary":w.team?.primary_color||'#d62828'}} key={w.team?.id||w.team?.name}>{w.team?.name||'Team'}</span>)}</small></div><b>{row.winners.map(w=>`${w.points} pt${w.points===1?'':'s'}`).join(' · ')}</b></div>)}</div>:<div className="emptyPanel">Weekly challenge winners will appear here after challenges are scored.</div>}</article>
     </section>
 
-    <section className="panel"><div className="panelTitle"><h3>2027 DRAFT POSITION RACE</h3><span>{rows.length} MANAGERS</span></div><div className="franchiseHeadRows">{rows.map((r,i)=><div key={r.team.id}><div><strong>#{i+1} · {r.team.name}</strong><small>{r.team.manager} · Pick 'Em {r.correct}-{r.wrong} · 🐶 {r.underdogCorrect} underdog calls · 🔥 {r.streak} streak · Challenges {r.challengePts} pts</small></div><b>{r.score.toFixed(1)}</b></div>)}</div></section>
+    <section className="panel"><div className="panelTitle"><h3>2027 DRAFT POSITION RACE</h3><span>{rows.length} MANAGERS</span></div><div className="franchiseHeadRows draftRaceRows">{rows.map((r,i)=><div className="teamAccentRow" style={{"--team-primary":r.team.primary_color,"--team-secondary":r.team.secondary_color}} key={r.team.id}><div><strong className="teamColorGlow">#{i+1} · {r.team.name}</strong><small>{r.team.manager} · Pick 'Em {r.correct}-{r.wrong} · 🐶 {r.underdogCorrect} underdog calls · 🔥 {r.streak} streak · Challenges {r.challengePts} pts</small></div><b>{r.score.toFixed(1)}</b></div>)}</div></section>
   </PageShell>;
 }
