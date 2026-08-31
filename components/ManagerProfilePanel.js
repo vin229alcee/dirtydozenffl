@@ -2,71 +2,59 @@
 
 import { useEffect, useState } from 'react';
 import { getSupabase } from '../lib/supabase';
+import { DEFAULT_PROFILE_BLOCKS } from './FranchiseProfileBlocks';
 
-const supabase = getSupabase();
-const MAX_FILE_SIZE = 5 * 1024 * 1024;
-const ACCEPTED_TYPES = ['image/jpeg','image/png','image/webp'];
+const supabase=getSupabase();
+const MAX_FILE_SIZE=5*1024*1024;
+const ACCEPTED_TYPES=['image/jpeg','image/png','image/webp'];
+const BLOCK_LABELS={story:'Franchise Story',personal_records:'Personal Records',snapshot:'Franchise Snapshot',all_time:'All-Time Franchise',current_highs:'Current Season + All-Time Highs',best_recent:'Best Season + Recent Results',head_to_head:'Head-to-Head'};
+const blankRecord={id:null,title:'',record_value:'',note:'',season:'',week:''};
 
-export default function ManagerProfilePanel({ session, team }){
-  const [profile,setProfile]=useState({profile_image_path:'',manager_bio:'',franchise_bio:'',primary_color:'#d62828',secondary_color:'#3a86ff'});
+export default function ManagerProfilePanel({session,team}){
+  const [profile,setProfile]=useState({profile_image_path:'',manager_bio:'',franchise_bio:'',primary_color:'#d62828',secondary_color:'#3a86ff',layout_order:DEFAULT_PROFILE_BLOCKS});
   const [poll,setPoll]=useState({question:'',option_a:'Yes',option_b:'No'});
+  const [records,setRecords]=useState([]);
+  const [record,setRecord]=useState(blankRecord);
   const [file,setFile]=useState(null);
   const [loading,setLoading]=useState(true);
   const [saving,setSaving]=useState(false);
   const [status,setStatus]=useState('');
+  const [dragging,setDragging]=useState(null);
 
-  useEffect(()=>{
-    let active=true;
-    async function load(){
-      if(!supabase||!team?.id){setLoading(false);return;}
-      const [{data,error},{data:activePoll}] = await Promise.all([
-        supabase.from('team_profiles').select('*').eq('team_id',team.id).maybeSingle(),
-        supabase.from('manager_polls').select('*').eq('team_id',team.id).eq('is_active',true).order('created_at',{ascending:false}).limit(1).maybeSingle()
-      ]);
-      if(!active)return;
-      if(error)setStatus(error.message);
-      if(data)setProfile(p=>({...p,...data}));
-      if(activePoll)setPoll(activePoll);
-      setLoading(false);
-    }
-    load();
-    return()=>{active=false};
-  },[team?.id]);
+  useEffect(()=>{let active=true;async function load(){if(!supabase||!team?.id){setLoading(false);return;}const [{data,error},{data:activePoll},{data:recordRows}]=await Promise.all([supabase.from('team_profiles').select('*').eq('team_id',team.id).maybeSingle(),supabase.from('manager_polls').select('*').eq('team_id',team.id).eq('is_active',true).order('created_at',{ascending:false}).limit(1).maybeSingle(),supabase.from('manager_personal_records').select('*').eq('team_id',team.id).order('sort_order').order('id')]);if(!active)return;if(error)setStatus(error.message);if(data)setProfile(p=>({...p,...data,layout_order:normalizeLayout(data.layout_order)}));if(activePoll)setPoll(activePoll);setRecords(recordRows||[]);setLoading(false);}load();return()=>{active=false};},[team?.id]);
 
-  function imageUrl(path){if(!path||!supabase)return '';return supabase.storage.from('manager-profiles').getPublicUrl(path).data.publicUrl;}
+  function normalizeLayout(value){const list=Array.isArray(value)?value:[];return [...new Set([...list,...DEFAULT_PROFILE_BLOCKS])].filter(id=>DEFAULT_PROFILE_BLOCKS.includes(id));}
+  function imageUrl(path){if(!path||!supabase)return'';return supabase.storage.from('manager-profiles').getPublicUrl(path).data.publicUrl;}
   function chooseFile(event){const next=event.target.files?.[0]||null;if(!next){setFile(null);return;}if(!ACCEPTED_TYPES.includes(next.type)){setStatus('Use a JPG, PNG, or WEBP image.');event.target.value='';return;}if(next.size>MAX_FILE_SIZE){setStatus('Profile pictures must be 5 MB or smaller.');event.target.value='';return;}setStatus('');setFile(next);}
 
-  async function saveProfile(event){
-    event.preventDefault();if(!supabase||!team?.id||!session?.user?.id)return;setSaving(true);setStatus('Saving profile…');let imagePath=profile.profile_image_path||'';
-    try{
-      if(file){const ext=(file.name.split('.').pop()||'jpg').toLowerCase().replace(/[^a-z0-9]/g,'');imagePath=`${session.user.id}/profile-${Date.now()}.${ext||'jpg'}`;const {error:uploadError}=await supabase.storage.from('manager-profiles').upload(imagePath,file,{contentType:file.type,upsert:false});if(uploadError)throw uploadError;}
-      const payload={team_id:Number(team.id),profile_image_path:imagePath||null,manager_bio:String(profile.manager_bio||'').trim().slice(0,600),franchise_bio:String(profile.franchise_bio||'').trim().slice(0,1000),primary_color:profile.primary_color||'#d62828',secondary_color:profile.secondary_color||'#3a86ff',updated_at:new Date().toISOString()};
-      const {data,error}=await supabase.from('team_profiles').upsert(payload,{onConflict:'team_id'}).select().single();if(error)throw error;setProfile(data);setFile(null);setStatus('Profile updated.');
-    }catch(error){setStatus(error?.message||'Unable to update profile.');}finally{setSaving(false);}
-  }
+  async function saveProfile(event){event?.preventDefault();if(!supabase||!team?.id||!session?.user?.id)return;setSaving(true);setStatus('Saving profile…');let imagePath=profile.profile_image_path||'';try{if(file){const ext=(file.name.split('.').pop()||'jpg').toLowerCase().replace(/[^a-z0-9]/g,'');imagePath=`${session.user.id}/profile-${Date.now()}.${ext||'jpg'}`;const {error:uploadError}=await supabase.storage.from('manager-profiles').upload(imagePath,file,{contentType:file.type,upsert:false});if(uploadError)throw uploadError;}const payload={team_id:Number(team.id),profile_image_path:imagePath||null,manager_bio:String(profile.manager_bio||'').trim().slice(0,600),franchise_bio:String(profile.franchise_bio||'').trim().slice(0,1000),primary_color:profile.primary_color||'#d62828',secondary_color:profile.secondary_color||'#3a86ff',layout_order:normalizeLayout(profile.layout_order),updated_at:new Date().toISOString()};const {data,error}=await supabase.from('team_profiles').upsert(payload,{onConflict:'team_id'}).select().single();if(error)throw error;setProfile(p=>({...p,...data,layout_order:normalizeLayout(data.layout_order)}));setFile(null);setStatus('Profile and page layout updated.');}catch(error){setStatus(error?.message||'Unable to update profile.');}finally{setSaving(false);}}
 
-  async function savePoll(){
-    if(!poll.question?.trim()){setStatus('Add a poll question first.');return;}setSaving(true);setStatus('Saving poll…');
-    try{
-      await supabase.from('manager_polls').update({is_active:false}).eq('team_id',team.id).eq('is_active',true);
-      const {data,error}=await supabase.from('manager_polls').insert({team_id:Number(team.id),question:poll.question.trim().slice(0,180),option_a:(poll.option_a||'Yes').trim().slice(0,60),option_b:(poll.option_b||'No').trim().slice(0,60),created_by:session.user.id,is_active:true}).select().single();
-      if(error)throw error;setPoll(data);setStatus('Manager poll is live.');
-    }catch(error){setStatus(error?.message||'Unable to save poll.');}finally{setSaving(false);}
-  }
+  async function savePoll(){if(!poll.question?.trim()){setStatus('Add a poll question first.');return;}setSaving(true);setStatus('Saving poll…');try{await supabase.from('manager_polls').update({is_active:false}).eq('team_id',team.id).eq('is_active',true);const {data,error}=await supabase.from('manager_polls').insert({team_id:Number(team.id),question:poll.question.trim().slice(0,180),option_a:(poll.option_a||'Yes').trim().slice(0,60),option_b:(poll.option_b||'No').trim().slice(0,60),created_by:session.user.id,is_active:true}).select().single();if(error)throw error;setPoll(data);setStatus('Manager poll is live.');}catch(error){setStatus(error?.message||'Unable to save poll.');}finally{setSaving(false);}}
+
+  function moveBlock(id,direction){setProfile(p=>{const order=normalizeLayout(p.layout_order);const index=order.indexOf(id),next=index+direction;if(index<0||next<0||next>=order.length)return p;const copy=[...order];[copy[index],copy[next]]=[copy[next],copy[index]];return{...p,layout_order:copy};});}
+  function dropBlock(target){if(!dragging||dragging===target)return;setProfile(p=>{const order=normalizeLayout(p.layout_order);const from=order.indexOf(dragging),to=order.indexOf(target);if(from<0||to<0)return p;const copy=[...order];copy.splice(from,1);copy.splice(to,0,dragging);return{...p,layout_order:copy};});setDragging(null);}
+
+  async function saveRecord(){if(!record.title.trim()||!record.record_value.trim()){setStatus('Record title and value are required.');return;}setSaving(true);const payload={team_id:Number(team.id),title:record.title.trim().slice(0,80),record_value:record.record_value.trim().slice(0,80),note:record.note.trim().slice(0,240),season:record.season?Number(record.season):null,week:record.week?Number(record.week):null,sort_order:record.id?(records.findIndex(r=>r.id===record.id)):records.length,updated_at:new Date().toISOString()};let error;if(record.id)({error}=await supabase.from('manager_personal_records').update(payload).eq('id',record.id));else({error}=await supabase.from('manager_personal_records').insert(payload));if(!error){const {data}=await supabase.from('manager_personal_records').select('*').eq('team_id',team.id).order('sort_order').order('id');setRecords(data||[]);setRecord(blankRecord);setStatus(record.id?'Personal record updated.':'Personal record added.');}else setStatus(error.message);setSaving(false);}
+  async function deleteRecord(id){if(!window.confirm('Delete this personal record?'))return;const {error}=await supabase.from('manager_personal_records').delete().eq('id',id);if(error)return setStatus(error.message);setRecords(r=>r.filter(x=>x.id!==id));if(record.id===id)setRecord(blankRecord);setStatus('Personal record deleted.');}
 
   const photo=imageUrl(profile.profile_image_path);const initials=String(team?.manager||'DD').split(' ').map(n=>n[0]).join('').slice(0,2).toUpperCase();
 
   return <details className="panel managerProfilePanel">
-    <summary><div><span className="eyebrow">FRANCHISE PROFILE</span><strong>Edit your public profile</strong><small>Photo, story, franchise colors, and manager poll</small></div><span className="managerProfileChevron" aria-hidden="true">▾</span></summary>
+    <summary><div><span className="eyebrow">FRANCHISE PROFILE</span><strong>Edit your public profile</strong><small>Photo, story, colors, personal records, poll, and page layout</small></div><span className="managerProfileChevron" aria-hidden="true">▾</span></summary>
     <form onSubmit={saveProfile} className="managerProfileForm">
       {loading?<div className="emptyPanel">Loading profile…</div>:<>
         <div className="managerProfilePhotoColumn"><div className="managerProfileThumb">{photo?<img src={photo} alt={`${team.manager} profile`}/>:<strong>{initials}</strong>}</div><label className="managerProfileUpload"><span>PROFILE PHOTO</span><input type="file" accept="image/jpeg,image/png,image/webp" onChange={chooseFile}/><small>JPG, PNG, WEBP · max 5 MB</small></label></div>
         <div className="managerProfileFields">
           <label><span>ABOUT YOU</span><textarea value={profile.manager_bio||''} onChange={e=>setProfile(p=>({...p,manager_bio:e.target.value}))} maxLength={600} rows={5} placeholder="Tell the league a little about yourself…"/><small>{(profile.manager_bio||'').length}/600</small></label>
           <label><span>FRANCHISE STORY</span><textarea value={profile.franchise_bio||''} onChange={e=>setProfile(p=>({...p,franchise_bio:e.target.value}))} maxLength={1000} rows={6} placeholder="Team origin, philosophy, rivalries, legendary bad beats…"/><small>{(profile.franchise_bio||'').length}/1000</small></label>
-          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12}}><label><span>PRIMARY COLOR</span><input type="color" value={profile.primary_color||'#d62828'} onChange={e=>setProfile(p=>({...p,primary_color:e.target.value}))}/></label><label><span>SECONDARY COLOR</span><input type="color" value={profile.secondary_color||'#3a86ff'} onChange={e=>setProfile(p=>({...p,secondary_color:e.target.value}))}/></label></div>
-          <div className="managerProfileActions"><button className="primaryButton" type="submit" disabled={saving}>{saving?'Saving…':'Save Profile'}</button></div>
-          <div style={{borderTop:'1px solid #2b3945',paddingTop:16,marginTop:8}}><span className="eyebrow">MANAGER POLL</span><label><span>QUESTION</span><input value={poll.question||''} onChange={e=>setPoll(p=>({...p,question:e.target.value}))} maxLength={180} placeholder="Will this franchise make the playoffs?"/></label><div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12}}><label><span>OPTION A</span><input value={poll.option_a||''} onChange={e=>setPoll(p=>({...p,option_a:e.target.value}))} maxLength={60}/></label><label><span>OPTION B</span><input value={poll.option_b||''} onChange={e=>setPoll(p=>({...p,option_b:e.target.value}))} maxLength={60}/></label></div><button className="secondaryButton" type="button" onClick={savePoll} disabled={saving}>Publish New Poll</button></div>
+          <div className="managerColorGrid"><label><span>PRIMARY COLOR</span><input type="color" value={profile.primary_color||'#d62828'} onChange={e=>setProfile(p=>({...p,primary_color:e.target.value}))}/></label><label><span>SECONDARY COLOR</span><input type="color" value={profile.secondary_color||'#3a86ff'} onChange={e=>setProfile(p=>({...p,secondary_color:e.target.value}))}/></label></div>
+
+          <div className="profileBuilderSection"><span className="eyebrow">PAGE BUILDER</span><h3>Arrange your public profile</h3><p>The Owner & Franchise File is permanently locked in the first position. Drag everything below it into any order you want.</p><div className="profileBuilderLocked"><span>1</span><div><strong>OWNER & FRANCHISE FILE</strong><small>Always first · cannot be moved</small></div><b>LOCKED</b></div><div className="profileBuilderList">{normalizeLayout(profile.layout_order).map((id,index)=><div key={id} className={`profileBuilderItem${dragging===id?' isDragging':''}`} draggable onDragStart={()=>setDragging(id)} onDragEnd={()=>setDragging(null)} onDragOver={e=>e.preventDefault()} onDrop={()=>dropBlock(id)}><span className="profileDragHandle">☰</span><div><strong>{index+2}. {BLOCK_LABELS[id]}</strong><small>Drag to reorder</small></div><div className="profileBuilderMoves"><button type="button" onClick={()=>moveBlock(id,-1)} disabled={index===0} aria-label={`Move ${BLOCK_LABELS[id]} up`}>↑</button><button type="button" onClick={()=>moveBlock(id,1)} disabled={index===normalizeLayout(profile.layout_order).length-1} aria-label={`Move ${BLOCK_LABELS[id]} down`}>↓</button></div></div>)}</div></div>
+
+          <div className="personalRecordsEditor"><span className="eyebrow">PERSONAL RECORDS</span><h3>Add your own franchise records</h3><div className="personalRecordForm"><label><span>RECORD TITLE</span><input value={record.title} onChange={e=>setRecord(r=>({...r,title:e.target.value}))} maxLength={80} placeholder="Longest win streak"/></label><label><span>VALUE</span><input value={record.record_value} onChange={e=>setRecord(r=>({...r,record_value:e.target.value}))} maxLength={80} placeholder="8 games"/></label><label><span>SEASON</span><input inputMode="numeric" value={record.season} onChange={e=>setRecord(r=>({...r,season:e.target.value}))} placeholder="Optional"/></label><label><span>WEEK</span><input inputMode="numeric" value={record.week} onChange={e=>setRecord(r=>({...r,week:e.target.value}))} placeholder="Optional"/></label><label className="personalRecordNote"><span>NOTE</span><input value={record.note} onChange={e=>setRecord(r=>({...r,note:e.target.value}))} maxLength={240} placeholder="Optional context"/></label><div className="managerProfileActions"><button className="secondaryButton" type="button" onClick={saveRecord} disabled={saving}>{record.id?'Save Record Changes':'Add Personal Record'}</button>{record.id&&<button className="secondaryButton" type="button" onClick={()=>setRecord(blankRecord)}>Cancel</button>}</div></div>{records.length?<div className="personalRecordManageList">{records.map(r=><div key={r.id}><div><strong>{r.title}</strong><small>{r.record_value}{r.season?` · ${r.season}`:''}{r.week?` Wk ${r.week}`:''}</small></div><div><button type="button" onClick={()=>setRecord({id:r.id,title:r.title,record_value:r.record_value,note:r.note||'',season:r.season||'',week:r.week||''})}>Edit</button><button type="button" onClick={()=>deleteRecord(r.id)}>Delete</button></div></div>)}</div>:null}</div>
+
+          <div className="managerProfileActions"><button className="primaryButton" type="submit" disabled={saving}>{saving?'Saving…':'Save Profile + Layout'}</button></div>
+          <div className="managerPollEditor"><span className="eyebrow">MANAGER POLL</span><label><span>QUESTION</span><input value={poll.question||''} onChange={e=>setPoll(p=>({...p,question:e.target.value}))} maxLength={180} placeholder="Will this franchise make the playoffs?"/></label><div className="managerColorGrid"><label><span>OPTION A</span><input value={poll.option_a||''} onChange={e=>setPoll(p=>({...p,option_a:e.target.value}))} maxLength={60}/></label><label><span>OPTION B</span><input value={poll.option_b||''} onChange={e=>setPoll(p=>({...p,option_b:e.target.value}))} maxLength={60}/></label></div><button className="secondaryButton" type="button" onClick={savePoll} disabled={saving}>Publish New Poll</button></div>
           {status&&<div className="managerProfileActions"><span>{status}</span></div>}
         </div>
       </>}
