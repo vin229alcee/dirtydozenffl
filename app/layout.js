@@ -12,6 +12,7 @@ import "./team-profile.css";
 import "./profile-placeholder-cleanup.css";
 import "./profile-extras.css";
 import "./ux-system.css";
+import "./manager-ux.css";
 
 export const metadata = {
   title: "Dirty Dozens FFL",
